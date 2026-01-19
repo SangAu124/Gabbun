@@ -6,7 +6,9 @@
       "Bash(tuist clean:*)",
       "Bash(tuist version:*)",
       "Bash(xcodebuild:*)",
-      "Bash(xcrun simctl:*)"
+      "Bash(xcrun simctl:*)",
+      "Bash(tuist test:*)",
+      "Bash(tuist build:*)"
     ]
   }
 }

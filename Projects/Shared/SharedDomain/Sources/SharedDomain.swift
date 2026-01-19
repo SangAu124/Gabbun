@@ -47,6 +47,59 @@ public struct WakeabilityScore: Codable, Equatable, Sendable {
     }
 }
 
+// MARK: - Sensor Samples
+public struct MotionSample: Equatable, Sendable {
+    public let timestamp: Date
+    public let magnitude: Double // |a| acceleration magnitude
+
+    public init(timestamp: Date, magnitude: Double) {
+        self.timestamp = timestamp
+        self.magnitude = magnitude
+    }
+}
+
+public struct HeartRateSample: Equatable, Sendable {
+    public let timestamp: Date
+    public let bpm: Double
+
+    public init(timestamp: Date, bpm: Double) {
+        self.timestamp = timestamp
+        self.bpm = bpm
+    }
+}
+
+// MARK: - Algorithm Output Events
+public struct ScoreUpdate: Equatable, Sendable {
+    public let score: Double
+    public let components: WakeabilityScore.Components
+    public let timestamp: Date
+
+    public init(score: Double, components: WakeabilityScore.Components, timestamp: Date) {
+        self.score = score
+        self.components = components
+        self.timestamp = timestamp
+    }
+}
+
+public struct TriggerEvent: Equatable, Sendable {
+    public let reason: TriggerReason
+    public let timestamp: Date
+    public let score: Double
+    public let components: WakeabilityScore.Components
+
+    public init(reason: TriggerReason, timestamp: Date, score: Double, components: WakeabilityScore.Components) {
+        self.reason = reason
+        self.timestamp = timestamp
+        self.score = score
+        self.components = components
+    }
+
+    public enum TriggerReason: String, Equatable, Sendable {
+        case smart = "SMART_SCORE"
+        case forced = "FORCED_TIME"
+    }
+}
+
 // MARK: - WakeSessionSummary
 public struct WakeSessionSummary: Codable, Equatable, Sendable {
     public let windowStartAt: Date
