@@ -65,5 +65,9 @@ fastlane/test_output
 # Visual Studio Code
 .vscode/
 
-# Documentation
-docs/
+# Tuist
+.tuist
+Derived/
+*.xcworkspace
+*.xcodeproj
+Tuist/Dependencies/

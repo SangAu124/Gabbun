@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tuist install:*)",
+      "Bash(tuist generate:*)",
+      "Bash(tuist clean:*)",
+      "Bash(tuist version:*)",
+      "Bash(xcodebuild:*)",
+      "Bash(xcrun simctl:*)"
+    ]
+  }
+}
