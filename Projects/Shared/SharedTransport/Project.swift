@@ -15,7 +15,8 @@ let project = Project(
                 .project(
                     target: "SharedDomain",
                     path: "../SharedDomain"
-                )
+                ),
+                .external(name: "ComposableArchitecture")
             ]
         ),
         .target(

@@ -8,7 +8,9 @@
       "Bash(xcodebuild:*)",
       "Bash(xcrun simctl:*)",
       "Bash(tuist test:*)",
-      "Bash(tuist build:*)"
+      "Bash(tuist build:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)"
     ]
   }
 }
