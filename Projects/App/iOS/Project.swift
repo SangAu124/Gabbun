@@ -19,6 +19,7 @@ let project = Project(
             sources: ["Sources/**"],
             resources: [],
             dependencies: [
+                .external(name: "ComposableArchitecture"),
                 .project(
                     target: "SharedDomain",
                     path: "../../Shared/SharedDomain"

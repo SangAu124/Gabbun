@@ -1,4 +1,5 @@
 import SwiftUI
+import ComposableArchitecture
 import SharedDomain
 import SharedAlgorithm
 import SharedTransport
@@ -7,45 +8,27 @@ import SharedTransport
 struct GabbunApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            SetupView(
+                store: Store(
+                    initialState: SetupFeature.State()
+                ) {
+                    SetupFeature()
+                } withDependencies: {
+                    $0.wcSessionClient = .liveValue
+                }
+            )
         }
-    }
-}
-
-struct ContentView: View {
-    var body: some View {
-        VStack(spacing: 20) {
-            Text("Gabbun")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-
-            Text("Smart Wake Alarm")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            Text("iOS App")
-                .font(.caption)
-                .foregroundColor(.gray)
-
-            // 빌드 확인용 플레이스홀더
-            Divider()
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Modules Linked:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                Text("✓ SharedDomain")
-                Text("✓ SharedAlgorithm")
-                Text("✓ SharedTransport")
-            }
-            .font(.caption)
-            .foregroundColor(.green)
-        }
-        .padding()
     }
 }
 
 #Preview {
-    ContentView()
+    SetupView(
+        store: Store(
+            initialState: SetupFeature.State()
+        ) {
+            SetupFeature()
+        } withDependencies: {
+            $0.wcSessionClient = .previewValue
+        }
+    )
 }

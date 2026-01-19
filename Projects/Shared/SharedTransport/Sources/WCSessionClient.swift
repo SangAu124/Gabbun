@@ -33,6 +33,12 @@ extension WCSessionClient: TestDependencyKey {
     }
 }
 
+extension WCSessionClient: DependencyKey {
+    public static var liveValue: WCSessionClient {
+        return WCSessionClient.live()
+    }
+}
+
 extension DependencyValues {
     public var wcSessionClient: WCSessionClient {
         get { self[WCSessionClient.self] }
