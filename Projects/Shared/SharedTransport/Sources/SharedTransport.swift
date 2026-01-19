@@ -1,6 +1,26 @@
 import Foundation
 import SharedDomain
 
+// MARK: - Date Encoding Strategy
+// Date는 ISO8601 형식으로 인코딩/디코딩 (예: "2026-01-19T12:34:56Z")
+// - 가독성이 높아 디버깅에 유리
+// - 표준 형식으로 플랫폼 간 호환성 보장
+public extension JSONEncoder {
+    static var transportEncoder: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+}
+
+public extension JSONDecoder {
+    static var transportDecoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+}
+
 // MARK: - Envelope
 public struct Envelope<T: Codable>: Codable, Sendable where T: Sendable {
     public let schemaVersion: Int
@@ -28,10 +48,11 @@ public struct Envelope<T: Codable>: Codable, Sendable where T: Sendable {
 public enum MessageType: String, Codable, Sendable {
     case updateSchedule = "update_schedule"
     case cancelSchedule = "cancel_schedule"
+    case ping = "ping"
+    case sessionState = "session_state"
     case alarmFired = "alarm_fired"
     case sessionSummary = "session_summary"
     case error = "error"
-    case sessionState = "session_state"
 }
 
 // MARK: - iPhone → Watch Payloads
@@ -50,6 +71,14 @@ public struct CancelSchedulePayload: Codable, Sendable {
 
     public init(effectiveDate: String) {
         self.effectiveDate = effectiveDate
+    }
+}
+
+public struct PingPayload: Codable, Sendable {
+    public let timestamp: Date
+
+    public init(timestamp: Date = Date()) {
+        self.timestamp = timestamp
     }
 }
 
