@@ -1,45 +1,35 @@
 import SwiftUI
+import ComposableArchitecture
 import SharedDomain
 import SharedAlgorithm
 import SharedTransport
 
 @main
 struct GabbunWatchApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
+    let store: StoreOf<WatchAppFeature>
+
+    init() {
+        self.store = Store(initialState: WatchAppFeature.State()) {
+            WatchAppFeature()
+        } withDependencies: {
+            $0.wcSessionClient = .liveValue
         }
     }
-}
 
-struct ContentView: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            Text("Gabbun")
-                .font(.headline)
-
-            Text("Watch App")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Modules:")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-
-                Text("✓ Domain")
-                Text("✓ Algorithm")
-                Text("✓ Transport")
-            }
-            .font(.caption2)
-            .foregroundColor(.green)
+    var body: some Scene {
+        WindowGroup {
+            WatchArmingView(store: store.scope(state: \.arming, action: \.arming))
+                .onAppear {
+                    store.send(.onAppear)
+                }
         }
-        .padding()
     }
 }
 
 #Preview {
-    ContentView()
+    WatchArmingView(
+        store: Store(initialState: WatchArmingFeature.State()) {
+            WatchArmingFeature()
+        }
+    )
 }

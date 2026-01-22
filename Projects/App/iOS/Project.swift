@@ -3,6 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "GabbunApp",
     targets: [
+        // MARK: - iOS App
         .target(
             name: "GabbunApp",
             destinations: .iOS,
@@ -17,6 +18,40 @@ let project = Project(
                 ]
             ),
             sources: ["Sources/**"],
+            resources: [],
+            dependencies: [
+                .external(name: "ComposableArchitecture"),
+                .project(
+                    target: "SharedDomain",
+                    path: "../../Shared/SharedDomain"
+                ),
+                .project(
+                    target: "SharedAlgorithm",
+                    path: "../../Shared/SharedAlgorithm"
+                ),
+                .project(
+                    target: "SharedTransport",
+                    path: "../../Shared/SharedTransport"
+                ),
+                .target(name: "GabbunWatchApp")
+            ]
+        ),
+        // MARK: - watchOS App (embedded in iOS app)
+        .target(
+            name: "GabbunWatchApp",
+            destinations: .watchOS,
+            product: .app,
+            bundleId: "com.gabbun.app.watchkitapp",
+            deploymentTargets: .watchOS("10.0"),
+            infoPlist: .extendingDefault(
+                with: [
+                    "CFBundleShortVersionString": "1.0",
+                    "CFBundleVersion": "1",
+                    "WKApplication": true,
+                    "WKCompanionAppBundleIdentifier": "com.gabbun.app"
+                ]
+            ),
+            sources: ["../Watch/Sources/**"],
             resources: [],
             dependencies: [
                 .external(name: "ComposableArchitecture"),

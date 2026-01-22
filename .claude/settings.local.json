@@ -10,7 +10,8 @@
       "Bash(tuist test:*)",
       "Bash(tuist build:*)",
       "Bash(ls:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(xargs ls:*)"
     ]
   }
 }

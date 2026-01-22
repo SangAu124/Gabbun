@@ -15,6 +15,11 @@ extension WCSessionClient {
                 // Mock 전송: continuation을 통해 즉시 에코백 (테스트용)
                 continuation.yield(message)
             },
+            updateContext: { message in
+                // Mock: 즉시 에코백
+                continuation.yield(message)
+            },
+            receivedContext: { nil },
             isReachable: { isReachable },
             isActivated: { isActivated },
             activate: {}
@@ -25,6 +30,8 @@ extension WCSessionClient {
     public static func testMock(
         messages: AsyncStream<TransportMessage> = .finished,
         send: @escaping @Sendable (TransportMessage) async throws -> Void = { _ in },
+        updateContext: @escaping @Sendable (TransportMessage) throws -> Void = { _ in },
+        receivedContext: @escaping @Sendable () -> TransportMessage? = { nil },
         isReachable: @escaping @Sendable () -> Bool = { true },
         isActivated: @escaping @Sendable () -> Bool = { true },
         activate: @escaping @Sendable () async -> Void = {}
@@ -32,6 +39,8 @@ extension WCSessionClient {
         return WCSessionClient(
             messages: { messages },
             send: send,
+            updateContext: updateContext,
+            receivedContext: receivedContext,
             isReachable: isReachable,
             isActivated: isActivated,
             activate: activate
@@ -45,6 +54,10 @@ extension WCSessionClient {
             send: { _ in
                 throw WCSessionError.notReachable
             },
+            updateContext: { _ in
+                throw WCSessionError.notActivated
+            },
+            receivedContext: { nil },
             isReachable: { false },
             isActivated: { false },
             activate: {}

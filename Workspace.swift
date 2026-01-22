@@ -6,7 +6,6 @@ let workspace = Workspace(
         "Projects/Shared/SharedDomain",
         "Projects/Shared/SharedAlgorithm",
         "Projects/Shared/SharedTransport",
-        "Projects/App/iOS",
-        "Projects/App/Watch"
+        "Projects/App/iOS"
     ]
 )

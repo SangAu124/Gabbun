@@ -6,13 +6,19 @@ import ComposableArchitecture
 // iOS/watchOS 간 TransportMessage 송수신 담당
 @DependencyClient
 public struct WCSessionClient: Sendable {
-    // 메시지 수신 스트림 (AsyncStream)
+    // 메시지 수신 스트림 (AsyncStream) - sendMessage용
     public var messages: @Sendable () -> AsyncStream<TransportMessage> = { .finished }
 
-    // 메시지 전송
+    // 메시지 전송 (상대방 앱이 foreground일 때만 동작)
     public var send: @Sendable (_ message: TransportMessage) async throws -> Void
 
-    // 상대방 기기 도달 가능 여부
+    // ApplicationContext 업데이트 (background에서도 전송 가능, 최신 값만 유지)
+    public var updateContext: @Sendable (_ message: TransportMessage) throws -> Void
+
+    // 수신된 ApplicationContext 조회
+    public var receivedContext: @Sendable () -> TransportMessage? = { nil }
+
+    // 상대방 기기 도달 가능 여부 (상대방 앱이 foreground일 때만 true)
     public var isReachable: @Sendable () -> Bool = { false }
 
     // 활성화 여부 (iOS: isPaired && isWatchAppInstalled, watchOS: isCompanionAppInstalled)

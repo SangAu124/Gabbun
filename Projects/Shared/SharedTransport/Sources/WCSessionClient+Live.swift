@@ -48,6 +48,12 @@ private final class LiveWCSessionClient: NSObject, WCSessionDelegate, @unchecked
             send: { [weak self] message in
                 try await self?.send(message: message)
             },
+            updateContext: { [weak self] message in
+                try self?.updateApplicationContext(message: message)
+            },
+            receivedContext: { [weak self] in
+                self?.getReceivedApplicationContext()
+            },
             isReachable: { [weak self] in
                 self?.session.isReachable ?? false
             },
@@ -102,6 +108,21 @@ private final class LiveWCSessionClient: NSObject, WCSessionDelegate, @unchecked
         }
     }
 
+    private func updateApplicationContext(message: TransportMessage) throws {
+        guard session.activationState == .activated else {
+            throw WCSessionError.notActivated
+        }
+
+        let dict = message.toDictionary()
+        try session.updateApplicationContext(dict)
+    }
+
+    private func getReceivedApplicationContext() -> TransportMessage? {
+        let context = session.receivedApplicationContext
+        guard !context.isEmpty else { return nil }
+        return TransportMessage.fromDictionary(context)
+    }
+
     // MARK: - WCSessionDelegate
     func session(
         _ session: WCSession,
@@ -124,6 +145,22 @@ private final class LiveWCSessionClient: NSObject, WCSessionDelegate, @unchecked
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
         guard let transportMessage = TransportMessage.fromDictionary(message) else {
+            return
+        }
+        messagesContinuation.yield(transportMessage)
+    }
+
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {
+        guard let transportMessage = TransportMessage.fromDictionary(message) else {
+            replyHandler([:])
+            return
+        }
+        messagesContinuation.yield(transportMessage)
+        replyHandler(["status": "received"])
+    }
+
+    func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
+        guard let transportMessage = TransportMessage.fromDictionary(applicationContext) else {
             return
         }
         messagesContinuation.yield(transportMessage)

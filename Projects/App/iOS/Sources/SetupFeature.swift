@@ -122,10 +122,11 @@ public struct SetupFeature {
                     payload: payload
                 )
 
+                // updateApplicationContext 사용 (background에서도 전송 가능)
                 return .run { send in
                     await send(.syncResponse(Result {
                         let message = try TransportMessage(envelope: envelope)
-                        try await wcSessionClient.send(message)
+                        try wcSessionClient.updateContext(message)
                     }))
                 }
 
@@ -141,8 +142,10 @@ public struct SetupFeature {
                 return .none
 
             case .updateConnectionStatus:
-                let isReachable = wcSessionClient.isReachable()
-                return .send(.connectionStatusUpdated(isReachable: isReachable))
+                // isActivated: Watch가 페어링되어 있고 앱이 설치되어 있으면 true
+                // isReachable: 상대방 앱이 foreground일 때만 true (background 전송에는 불필요)
+                let isActivated = wcSessionClient.isActivated()
+                return .send(.connectionStatusUpdated(isReachable: isActivated))
 
             case .connectionStatusUpdated(let isReachable):
                 state.isReachable = isReachable
