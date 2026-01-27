@@ -5,8 +5,10 @@ import SharedTransport
 
 // MARK: - ArmingState
 public enum ArmingState: String, Equatable, Sendable {
-    case idle = "Idle"
-    case armed = "Armed"
+    case idle = "Idle"              // 스케줄 없음 또는 비활성화
+    case armed = "Armed"            // 윈도우 시작 대기 중 (windowArmTime ~ windowStartTime)
+    case monitoring = "Monitoring"  // 모니터링 진행 중 (windowStartTime ~ trigger/targetWakeTime)
+    case triggered = "Triggered"    // 알람 발화됨
 }
 
 // MARK: - WatchArmingFeature
@@ -64,6 +66,15 @@ public struct WatchArmingFeature {
         case scheduleReceived(schedule: AlarmSchedule, effectiveDate: String)
         case scheduleCancelled
         case tick(Date)
+
+        // 상태 전환 이벤트 (부모에게 전달)
+        case delegate(Delegate)
+
+        public enum Delegate: Equatable, Sendable {
+            case startMonitoring(targetWakeTime: Date, windowStartTime: Date)
+            case alarmTriggered
+            case sessionEnded
+        }
     }
 
     // MARK: - Reducer
@@ -74,8 +85,7 @@ public struct WatchArmingFeature {
                 state.schedule = schedule
                 state.effectiveDate = effectiveDate
                 // 상태 재평가
-                updateArmingState(&state)
-                return .none
+                return evaluateStateChange(&state)
 
             case .scheduleCancelled:
                 state.schedule = nil
@@ -85,28 +95,64 @@ public struct WatchArmingFeature {
 
             case let .tick(now):
                 state.now = now
-                // 윈도우 시작 1분 전부터 Armed 상태로 전환
-                updateArmingState(&state)
+                return evaluateStateChange(&state)
+
+            case .delegate:
+                // 부모에서 처리
                 return .none
             }
         }
     }
 
     // MARK: - Private Helpers
-    private func updateArmingState(_ state: inout State) {
+    private func evaluateStateChange(_ state: inout State) -> Effect<Action> {
         guard let schedule = state.schedule,
               schedule.enabled,
               let windowArmTime = state.windowArmTime,
+              let windowStartTime = state.windowStartTime,
               let targetWakeTime = state.targetWakeTime else {
             state.armingState = .idle
-            return
+            return .none
         }
 
-        // 현재 시각이 windowArmTime(윈도우 시작 1분 전) 이후이고 targetWakeTime 이전이면 Armed
-        if state.now >= windowArmTime && state.now < targetWakeTime {
-            state.armingState = .armed
-        } else {
+        let now = state.now
+        let previousState = state.armingState
+
+        // 목표 시각 이후 → Idle (세션 종료)
+        if now >= targetWakeTime {
+            if previousState == .monitoring {
+                state.armingState = .idle
+                return .send(.delegate(.sessionEnded))
+            }
             state.armingState = .idle
+            return .none
         }
+
+        // 윈도우 시작 이후 → Monitoring
+        if now >= windowStartTime {
+            if previousState != .monitoring && previousState != .triggered {
+                state.armingState = .monitoring
+                return .send(.delegate(.startMonitoring(
+                    targetWakeTime: targetWakeTime,
+                    windowStartTime: windowStartTime
+                )))
+            }
+            return .none
+        }
+
+        // 윈도우 시작 1분 전 이후 → Armed
+        if now >= windowArmTime {
+            state.armingState = .armed
+            return .none
+        }
+
+        // 그 외 → Idle
+        state.armingState = .idle
+        return .none
+    }
+
+    // 외부에서 호출하여 triggered 상태로 전환
+    public static func setTriggered(_ state: inout State) {
+        state.armingState = .triggered
     }
 }

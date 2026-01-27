@@ -34,11 +34,43 @@ public struct WatchArmingView: View {
             Text(store.armingState.rawValue)
                 .font(.title3)
                 .fontWeight(.bold)
-                .foregroundColor(store.armingState == .armed ? .green : .secondary)
+                .foregroundColor(statusColor)
 
+            statusIcon
+                .frame(width: 20, height: 20)
+        }
+    }
+
+    private var statusColor: Color {
+        switch store.armingState {
+        case .idle:
+            return .secondary
+        case .armed:
+            return .green
+        case .monitoring:
+            return .blue
+        case .triggered:
+            return .orange
+        }
+    }
+
+    @ViewBuilder
+    private var statusIcon: some View {
+        switch store.armingState {
+        case .idle:
             Circle()
-                .fill(store.armingState == .armed ? Color.green : Color.gray.opacity(0.5))
-                .frame(width: 12, height: 12)
+                .fill(Color.gray.opacity(0.5))
+        case .armed:
+            Circle()
+                .fill(Color.green)
+        case .monitoring:
+            Image(systemName: "waveform.path.ecg")
+                .foregroundColor(.blue)
+                .symbolEffect(.pulse)
+        case .triggered:
+            Image(systemName: "alarm.fill")
+                .foregroundColor(.orange)
+                .symbolEffect(.bounce)
         }
     }
 

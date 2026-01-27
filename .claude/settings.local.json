@@ -11,7 +11,8 @@
       "Bash(tuist build:*)",
       "Bash(ls:*)",
       "Bash(find:*)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(tree:*)"
     ]
   }
 }

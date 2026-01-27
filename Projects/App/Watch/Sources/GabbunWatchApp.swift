@@ -13,12 +13,13 @@ struct GabbunWatchApp: App {
             WatchAppFeature()
         } withDependencies: {
             $0.wcSessionClient = .liveValue
+            $0.sensorSimulator = .liveValue
         }
     }
 
     var body: some Scene {
         WindowGroup {
-            WatchArmingView(store: store.scope(state: \.arming, action: \.arming))
+            WatchMainView(store: store)
                 .onAppear {
                     store.send(.onAppear)
                 }
@@ -26,10 +27,38 @@ struct GabbunWatchApp: App {
     }
 }
 
-#Preview {
+// MARK: - WatchMainView
+struct WatchMainView: View {
+    let store: StoreOf<WatchAppFeature>
+
+    var body: some View {
+        // 상태에 따라 뷰 전환
+        switch store.arming.armingState {
+        case .idle, .armed:
+            // 스케줄/대기 화면
+            WatchArmingView(store: store.scope(state: \.arming, action: \.arming))
+
+        case .monitoring, .triggered:
+            // 모니터링 화면
+            WatchMonitoringView(
+                store: store.scope(state: \.monitoring, action: \.monitoring)
+            )
+        }
+    }
+}
+
+#Preview("Idle") {
     WatchArmingView(
         store: Store(initialState: WatchArmingFeature.State()) {
             WatchArmingFeature()
+        }
+    )
+}
+
+#Preview("Monitoring") {
+    WatchMonitoringView(
+        store: Store(initialState: WatchMonitoringFeature.State()) {
+            WatchMonitoringFeature()
         }
     )
 }

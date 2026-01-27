@@ -23,15 +23,15 @@ let project = Project(
                 .external(name: "ComposableArchitecture"),
                 .project(
                     target: "SharedDomain",
-                    path: "../../Shared/SharedDomain"
+                    path: .relativeToRoot("Projects/Shared/SharedDomain")
                 ),
                 .project(
                     target: "SharedAlgorithm",
-                    path: "../../Shared/SharedAlgorithm"
+                    path: .relativeToRoot("Projects/Shared/SharedAlgorithm")
                 ),
                 .project(
                     target: "SharedTransport",
-                    path: "../../Shared/SharedTransport"
+                    path: .relativeToRoot("Projects/Shared/SharedTransport")
                 ),
                 .target(name: "GabbunWatchApp")
             ]
@@ -57,15 +57,15 @@ let project = Project(
                 .external(name: "ComposableArchitecture"),
                 .project(
                     target: "SharedDomain",
-                    path: "../../Shared/SharedDomain"
+                    path: .relativeToRoot("Projects/Shared/SharedDomain")
                 ),
                 .project(
                     target: "SharedAlgorithm",
-                    path: "../../Shared/SharedAlgorithm"
+                    path: .relativeToRoot("Projects/Shared/SharedAlgorithm")
                 ),
                 .project(
                     target: "SharedTransport",
-                    path: "../../Shared/SharedTransport"
+                    path: .relativeToRoot("Projects/Shared/SharedTransport")
                 )
             ]
         )

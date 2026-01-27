@@ -10,7 +10,9 @@ public struct WatchAppFeature {
     @ObservableState
     public struct State: Equatable {
         public var arming: WatchArmingFeature.State = .init()
+        public var monitoring: WatchMonitoringFeature.State = .init()
         public var isCompanionReachable: Bool = false
+        public var now: Date = Date()
 
         public init() {}
     }
@@ -19,6 +21,7 @@ public struct WatchAppFeature {
     public enum Action: Sendable {
         case onAppear
         case arming(WatchArmingFeature.Action)
+        case monitoring(WatchMonitoringFeature.Action)
         case messageReceived(TransportMessage)
         case tick
         case updateReachability
@@ -27,7 +30,7 @@ public struct WatchAppFeature {
 
     // MARK: - Dependencies
     @Dependency(\.wcSessionClient) var wcSessionClient
-    @Dependency(\.date.now) var now
+    @Dependency(\.date.now) var dateNow
     @Dependency(\.continuousClock) var clock
 
     private enum CancelID {
@@ -40,6 +43,10 @@ public struct WatchAppFeature {
     public var body: some ReducerOf<Self> {
         Scope(state: \.arming, action: \.arming) {
             WatchArmingFeature()
+        }
+
+        Scope(state: \.monitoring, action: \.monitoring) {
+            WatchMonitoringFeature()
         }
 
         Reduce { state, action in
@@ -81,7 +88,11 @@ public struct WatchAppFeature {
                 return handleMessage(message, state: &state)
 
             case .tick:
-                return .send(.arming(.tick(now)))
+                state.now = dateNow
+                return .merge(
+                    .send(.arming(.tick(dateNow))),
+                    .send(.monitoring(.tick(dateNow)))
+                )
 
             case .updateReachability:
                 let isReachable = wcSessionClient.isReachable()
@@ -91,7 +102,32 @@ public struct WatchAppFeature {
                 state.isCompanionReachable = isReachable
                 return .none
 
+            // MARK: - Arming Delegate Actions
+            case let .arming(.delegate(.startMonitoring(targetWakeTime, windowStartTime))):
+                // 모니터링 시작
+                return .send(.monitoring(.startMonitoring(
+                    targetWakeTime: targetWakeTime,
+                    windowStartTime: windowStartTime
+                )))
+
+            case .arming(.delegate(.alarmTriggered)):
+                // 알람 발화됨 (arming에서 triggered로 전환 필요 시)
+                return .none
+
+            case .arming(.delegate(.sessionEnded)):
+                // 세션 종료 → 모니터링 중지
+                return .send(.monitoring(.stopMonitoring))
+
             case .arming:
+                return .none
+
+            // MARK: - Monitoring Actions
+            case let .monitoring(.triggerDetected(event)):
+                // 알람 트리거 → arming 상태 업데이트
+                WatchArmingFeature.setTriggered(&state.arming)
+                return .none
+
+            case .monitoring:
                 return .none
             }
         }
@@ -101,7 +137,7 @@ public struct WatchAppFeature {
     private func handleMessage(_ message: TransportMessage, state: inout State) -> Effect<Action> {
         // 메시지 타입 먼저 확인
         guard let typeEnvelope: Envelope<PingPayload> = try? message.decode(),
-              let messageType = MessageType(rawValue: typeEnvelope.type.rawValue) else {
+              let _ = MessageType(rawValue: typeEnvelope.type.rawValue) else {
             // fallback: raw type 파싱 시도
             return parseAndHandleMessage(message, state: &state)
         }

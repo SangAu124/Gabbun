@@ -14,7 +14,7 @@ let project = Project(
             dependencies: [
                 .project(
                     target: "SharedDomain",
-                    path: "../SharedDomain"
+                    path: .relativeToRoot("Projects/Shared/SharedDomain")
                 )
             ]
         ),
