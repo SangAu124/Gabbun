@@ -8,10 +8,11 @@ let project = Project(
             name: "GabbunApp",
             destinations: .iOS,
             product: .app,
-            bundleId: "com.gabbun.app",
+            bundleId: "com.sangau.gabbun.app",
             deploymentTargets: .iOS("17.0"),
             infoPlist: .extendingDefault(
                 with: [
+                    "CFBundleDisplayName": "가뿐",
                     "CFBundleShortVersionString": "1.0",
                     "CFBundleVersion": "1",
                     "UILaunchScreen": [:]
@@ -41,14 +42,15 @@ let project = Project(
             name: "GabbunWatchApp",
             destinations: .watchOS,
             product: .app,
-            bundleId: "com.gabbun.app.watchkitapp",
+            bundleId: "com.sangau.gabbun.app.watchkitapp",
             deploymentTargets: .watchOS("10.0"),
             infoPlist: .extendingDefault(
                 with: [
+                    "CFBundleDisplayName": "가뿐",
                     "CFBundleShortVersionString": "1.0",
                     "CFBundleVersion": "1",
                     "WKApplication": true,
-                    "WKCompanionAppBundleIdentifier": "com.gabbun.app"
+                    "WKCompanionAppBundleIdentifier": "com.sangau.gabbun.app"
                 ]
             ),
             sources: ["../Watch/Sources/**"],

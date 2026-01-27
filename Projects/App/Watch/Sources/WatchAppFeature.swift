@@ -11,8 +11,19 @@ public struct WatchAppFeature {
     public struct State: Equatable {
         public var arming: WatchArmingFeature.State = .init()
         public var monitoring: WatchMonitoringFeature.State = .init()
+        public var alarm: WatchAlarmFeature.State = .init()
         public var isCompanionReachable: Bool = false
         public var now: Date = Date()
+
+        // 알람 화면 표시 여부
+        public var isAlarmActive: Bool {
+            switch alarm.alarmState {
+            case .ringing, .snoozed:
+                return true
+            case .idle, .dismissed:
+                return false
+            }
+        }
 
         public init() {}
     }
@@ -22,6 +33,7 @@ public struct WatchAppFeature {
         case onAppear
         case arming(WatchArmingFeature.Action)
         case monitoring(WatchMonitoringFeature.Action)
+        case alarm(WatchAlarmFeature.Action)
         case messageReceived(TransportMessage)
         case tick
         case updateReachability
@@ -47,6 +59,10 @@ public struct WatchAppFeature {
 
         Scope(state: \.monitoring, action: \.monitoring) {
             WatchMonitoringFeature()
+        }
+
+        Scope(state: \.alarm, action: \.alarm) {
+            WatchAlarmFeature()
         }
 
         Reduce { state, action in
@@ -91,7 +107,8 @@ public struct WatchAppFeature {
                 state.now = dateNow
                 return .merge(
                     .send(.arming(.tick(dateNow))),
-                    .send(.monitoring(.tick(dateNow)))
+                    .send(.monitoring(.tick(dateNow))),
+                    .send(.alarm(.tick(dateNow)))
                 )
 
             case .updateReachability:
@@ -123,11 +140,36 @@ public struct WatchAppFeature {
 
             // MARK: - Monitoring Actions
             case let .monitoring(.triggerDetected(event)):
-                // 알람 트리거 → arming 상태 업데이트
+                // 알람 트리거 → arming 상태 업데이트 + 알람 화면 활성화
                 WatchArmingFeature.setTriggered(&state.arming)
-                return .none
+
+                // 알람 발화
+                return .send(.alarm(.alarmTriggered(
+                    event,
+                    targetWakeTime: state.monitoring.targetWakeTime ?? Date(),
+                    windowStartTime: state.monitoring.windowStartTime ?? Date(),
+                    recentScores: state.monitoring.recentScores
+                )))
 
             case .monitoring:
+                return .none
+
+            // MARK: - Alarm Delegate Actions
+            case let .alarm(.delegate(.alarmDismissed(summary))):
+                // 알람 종료 → 세션 종료 처리
+                // Arming 상태를 idle로 전환
+                state.arming.armingState = .idle
+                state.arming.schedule = nil
+                state.arming.effectiveDate = nil
+
+                // 모니터링 중지
+                return .send(.monitoring(.stopMonitoring))
+
+            case .alarm(.delegate(.alarmSnoozed)):
+                // 스누즈 → 별도 처리 없음 (알람 화면 유지, cooldown과 무관)
+                return .none
+
+            case .alarm:
                 return .none
             }
         }

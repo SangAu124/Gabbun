@@ -32,17 +32,22 @@ struct WatchMainView: View {
     let store: StoreOf<WatchAppFeature>
 
     var body: some View {
-        // 상태에 따라 뷰 전환
-        switch store.arming.armingState {
-        case .idle, .armed:
-            // 스케줄/대기 화면
-            WatchArmingView(store: store.scope(state: \.arming, action: \.arming))
+        // 알람 활성화 시 알람 화면 우선 표시
+        if store.isAlarmActive {
+            WatchAlarmView(store: store.scope(state: \.alarm, action: \.alarm))
+        } else {
+            // 상태에 따라 뷰 전환
+            switch store.arming.armingState {
+            case .idle, .armed:
+                // 스케줄/대기 화면
+                WatchArmingView(store: store.scope(state: \.arming, action: \.arming))
 
-        case .monitoring, .triggered:
-            // 모니터링 화면
-            WatchMonitoringView(
-                store: store.scope(state: \.monitoring, action: \.monitoring)
-            )
+            case .monitoring, .triggered:
+                // 모니터링 화면
+                WatchMonitoringView(
+                    store: store.scope(state: \.monitoring, action: \.monitoring)
+                )
+            }
         }
     }
 }
@@ -59,6 +64,24 @@ struct WatchMainView: View {
     WatchMonitoringView(
         store: Store(initialState: WatchMonitoringFeature.State()) {
             WatchMonitoringFeature()
+        }
+    )
+}
+
+#Preview("Alarm Ringing") {
+    WatchAlarmView(
+        store: Store(
+            initialState: WatchAlarmFeature.State(
+                alarmState: .ringing,
+                triggerEvent: TriggerEvent(
+                    reason: .smart,
+                    timestamp: Date(),
+                    score: 0.78,
+                    components: WakeabilityScore.Components(motionScore: 0.82, heartRateScore: 0.71)
+                )
+            )
+        ) {
+            WatchAlarmFeature()
         }
     )
 }

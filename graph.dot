@@ -1,0 +1,245 @@
+digraph {
+  AppKitNavigation [fillcolor=coral1 shape=cylinder style=filled]
+  BasicContainers [fillcolor=coral1 shape=cylinder style=filled]
+  BitCollections [fillcolor=coral1 shape=cylinder style=filled]
+  CasePaths [fillcolor=coral1 shape=cylinder style=filled]
+  CasePathsCore [fillcolor=coral1 shape=cylinder style=filled]
+  CasePathsMacros [fillcolor=deepskyblue penwidth="1.5" shape=box3d style=filled]
+  Clocks [fillcolor=coral1 shape=cylinder style=filled]
+  Collections [fillcolor=coral1 shape=cylinder style=filled]
+  CombineSchedulers [fillcolor=coral1 shape=cylinder style=filled]
+  ComposableArchitecture [fillcolor=coral1 shape=cylinder style=filled]
+  ComposableArchitectureMacros [fillcolor=deepskyblue penwidth="1.5" shape=box3d style=filled]
+  ConcurrencyExtras [fillcolor=coral1 shape=cylinder style=filled]
+  ContainersPreview [fillcolor=coral1 shape=cylinder style=filled]
+  CustomDump [fillcolor=coral1 shape=cylinder style=filled]
+  Dependencies [fillcolor=coral1 shape=cylinder style=filled]
+  DependenciesMacros [fillcolor=coral1 shape=cylinder style=filled]
+  DependenciesMacrosPlugin [fillcolor=deepskyblue penwidth="1.5" shape=box3d style=filled]
+  DependenciesTestSupport [fillcolor=coral1 shape=cylinder style=filled]
+  DequeModule [fillcolor=coral1 shape=cylinder style=filled]
+  GabbunApp [fillcolor=deepskyblue penwidth="1.5" shape=box3d style=filled]
+  GabbunWatchApp [fillcolor=deepskyblue penwidth="1.5" shape=box3d style=filled]
+  HashTreeCollections [fillcolor=coral1 shape=cylinder style=filled]
+  HeapModule [fillcolor=coral1 shape=cylinder style=filled]
+  IdentifiedCollections [fillcolor=coral1 shape=cylinder style=filled]
+  InternalCollectionsUtilities [fillcolor=coral1 shape=cylinder style=filled]
+  IssueReporting [fillcolor=coral1 shape=cylinder style=filled]
+  IssueReportingPackageSupport [fillcolor=coral1 shape=cylinder style=filled]
+  IssueReportingTestSupport [fillcolor=darkgoldenrod1 shape=cylinder style=filled]
+  OrderedCollections [fillcolor=coral1 shape=cylinder style=filled]
+  Perception [fillcolor=coral1 shape=cylinder style=filled]
+  PerceptionCore [fillcolor=coral1 shape=cylinder style=filled]
+  PerceptionMacros [fillcolor=deepskyblue penwidth="1.5" shape=box3d style=filled]
+  SharedAlgorithm [fillcolor=darkgoldenrod1 shape=cylinder style=filled]
+  SharedAlgorithmTests [fillcolor=limegreen shape=octagon style=filled]
+  SharedDomain [fillcolor=darkgoldenrod1 shape=cylinder style=filled]
+  SharedDomainTests [fillcolor=limegreen shape=octagon style=filled]
+  SharedTransport [fillcolor=darkgoldenrod1 shape=cylinder style=filled]
+  SharedTransportTests [fillcolor=limegreen shape=octagon style=filled]
+  Sharing [fillcolor=coral1 shape=cylinder style=filled]
+  Sharing1 [fillcolor=coral1 shape=cylinder style=filled]
+  Sharing2 [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftBasicFormat [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftCompilerPlugin [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftCompilerPluginMessageHandling [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftDiagnostics [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftIDEUtils [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftIfConfig [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftLexicalLookup [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftLibraryPluginProvider [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftNavigation [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftOperators [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftParser [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftParserDiagnostics [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftRefactor [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftSyntax [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftSyntax509 [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftSyntax510 [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftSyntax600 [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftSyntax601 [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftSyntax602 [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftSyntaxBuilder [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftSyntaxMacroExpansion [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftSyntaxMacros [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftSyntaxMacrosGenericTestSupport [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftSyntaxMacrosTestSupport [fillcolor=coral1 shape=cylinder style=filled]
+  SwiftUINavigation [fillcolor=coral1 shape=cylinder style=filled]
+  TrailingElementsModule [fillcolor=coral1 shape=cylinder style=filled]
+  UIKitNavigation [fillcolor=coral1 shape=cylinder style=filled]
+  UIKitNavigationShim [fillcolor=coral1 shape=cylinder style=filled]
+  XCTestDynamicOverlay [fillcolor=coral1 shape=cylinder style=filled]
+  _RopeModule [fillcolor=coral1 shape=cylinder style=filled]
+  _SwiftLibraryPluginProviderCShims [fillcolor=coral1 shape=cylinder style=filled]
+  _SwiftSyntaxCShims [fillcolor=coral1 shape=cylinder style=filled]
+  _SwiftSyntaxGenericTestSupport [fillcolor=coral1 shape=cylinder style=filled]
+  AppKitNavigation -> SwiftNavigation
+  BasicContainers -> InternalCollectionsUtilities
+  BasicContainers -> ContainersPreview
+  BitCollections -> InternalCollectionsUtilities
+  CasePaths -> CasePathsMacros
+  CasePaths -> CasePathsCore
+  CasePathsCore -> XCTestDynamicOverlay
+  CasePathsCore -> IssueReporting
+  CasePathsMacros -> SwiftSyntaxMacros
+  CasePathsMacros -> SwiftCompilerPlugin
+  Clocks -> ConcurrencyExtras
+  Clocks -> IssueReporting
+  Collections -> OrderedCollections
+  Collections -> _RopeModule
+  Collections -> HashTreeCollections
+  Collections -> DequeModule
+  Collections -> BitCollections
+  Collections -> HeapModule
+  CombineSchedulers -> ConcurrencyExtras
+  CombineSchedulers -> IssueReporting
+  ComposableArchitecture -> SwiftUINavigation
+  ComposableArchitecture -> CombineSchedulers
+  ComposableArchitecture -> Dependencies
+  ComposableArchitecture -> CustomDump
+  ComposableArchitecture -> UIKitNavigation
+  ComposableArchitecture -> ConcurrencyExtras
+  ComposableArchitecture -> ComposableArchitectureMacros
+  ComposableArchitecture -> Perception
+  ComposableArchitecture -> DependenciesMacros
+  ComposableArchitecture -> IssueReporting
+  ComposableArchitecture -> Sharing
+  ComposableArchitecture -> OrderedCollections
+  ComposableArchitecture -> CasePaths
+  ComposableArchitecture -> IdentifiedCollections
+  ComposableArchitectureMacros -> SwiftSyntaxMacros
+  ComposableArchitectureMacros -> SwiftCompilerPlugin
+  ContainersPreview -> InternalCollectionsUtilities
+  CustomDump -> XCTestDynamicOverlay
+  CustomDump -> IssueReporting
+  Dependencies -> IssueReporting
+  Dependencies -> XCTestDynamicOverlay
+  Dependencies -> ConcurrencyExtras
+  Dependencies -> Clocks
+  Dependencies -> CombineSchedulers
+  DependenciesMacros -> DependenciesMacrosPlugin
+  DependenciesMacros -> XCTestDynamicOverlay
+  DependenciesMacros -> IssueReporting
+  DependenciesMacrosPlugin -> SwiftSyntaxMacros
+  DependenciesMacrosPlugin -> SwiftCompilerPlugin
+  DependenciesTestSupport -> ConcurrencyExtras
+  DependenciesTestSupport -> Dependencies
+  DependenciesTestSupport -> IssueReportingTestSupport
+  DequeModule -> InternalCollectionsUtilities
+  GabbunApp -> GabbunWatchApp
+  GabbunApp -> ComposableArchitecture
+  GabbunApp -> SharedAlgorithm
+  GabbunApp -> SharedDomain
+  GabbunApp -> SharedTransport
+  GabbunWatchApp -> SharedDomain
+  GabbunWatchApp -> ComposableArchitecture
+  GabbunWatchApp -> SharedTransport
+  GabbunWatchApp -> SharedAlgorithm
+  HashTreeCollections -> InternalCollectionsUtilities
+  HeapModule -> InternalCollectionsUtilities
+  IdentifiedCollections -> OrderedCollections
+  IssueReporting -> IssueReportingPackageSupport
+  IssueReportingTestSupport -> IssueReportingPackageSupport
+  OrderedCollections -> InternalCollectionsUtilities
+  Perception -> PerceptionMacros
+  Perception -> PerceptionCore
+  PerceptionCore -> IssueReporting
+  PerceptionMacros -> SwiftSyntaxMacros
+  PerceptionMacros -> SwiftCompilerPlugin
+  SharedAlgorithm -> SharedDomain
+  SharedAlgorithmTests -> SharedAlgorithm
+  SharedDomainTests -> SharedDomain
+  SharedTransport -> SharedDomain
+  SharedTransport -> ComposableArchitecture
+  SharedTransportTests -> SharedTransport
+  Sharing -> CustomDump
+  Sharing -> Sharing1
+  Sharing -> IdentifiedCollections
+  Sharing -> IssueReporting
+  Sharing -> PerceptionCore
+  Sharing -> Dependencies
+  Sharing -> ConcurrencyExtras
+  Sharing -> Sharing2
+  Sharing -> CombineSchedulers
+  SwiftBasicFormat -> SwiftSyntax
+  SwiftCompilerPlugin -> SwiftCompilerPluginMessageHandling
+  SwiftCompilerPlugin -> SwiftSyntaxMacros
+  SwiftCompilerPluginMessageHandling -> SwiftSyntaxMacros
+  SwiftCompilerPluginMessageHandling -> SwiftSyntax
+  SwiftCompilerPluginMessageHandling -> SwiftOperators
+  SwiftCompilerPluginMessageHandling -> SwiftSyntaxMacroExpansion
+  SwiftCompilerPluginMessageHandling -> SwiftDiagnostics
+  SwiftCompilerPluginMessageHandling -> _SwiftSyntaxCShims
+  SwiftCompilerPluginMessageHandling -> SwiftParser
+  SwiftDiagnostics -> SwiftSyntax
+  SwiftIDEUtils -> SwiftSyntax
+  SwiftIDEUtils -> SwiftParser
+  SwiftIDEUtils -> SwiftDiagnostics
+  SwiftIfConfig -> SwiftDiagnostics
+  SwiftIfConfig -> SwiftSyntax
+  SwiftIfConfig -> SwiftSyntaxBuilder
+  SwiftIfConfig -> SwiftOperators
+  SwiftLexicalLookup -> SwiftSyntax
+  SwiftLexicalLookup -> SwiftIfConfig
+  SwiftLibraryPluginProvider -> SwiftSyntaxMacros
+  SwiftLibraryPluginProvider -> _SwiftLibraryPluginProviderCShims
+  SwiftLibraryPluginProvider -> SwiftCompilerPluginMessageHandling
+  SwiftNavigation -> CustomDump
+  SwiftNavigation -> IssueReporting
+  SwiftNavigation -> OrderedCollections
+  SwiftNavigation -> PerceptionCore
+  SwiftNavigation -> Perception
+  SwiftNavigation -> CasePaths
+  SwiftNavigation -> ConcurrencyExtras
+  SwiftOperators -> SwiftParser
+  SwiftOperators -> SwiftSyntax
+  SwiftOperators -> SwiftDiagnostics
+  SwiftParser -> SwiftSyntax
+  SwiftParserDiagnostics -> SwiftParser
+  SwiftParserDiagnostics -> SwiftBasicFormat
+  SwiftParserDiagnostics -> SwiftSyntax
+  SwiftParserDiagnostics -> SwiftDiagnostics
+  SwiftRefactor -> SwiftSyntax
+  SwiftRefactor -> SwiftSyntaxBuilder
+  SwiftRefactor -> SwiftBasicFormat
+  SwiftRefactor -> SwiftParser
+  SwiftSyntax -> SwiftSyntax601
+  SwiftSyntax -> SwiftSyntax509
+  SwiftSyntax -> SwiftSyntax600
+  SwiftSyntax -> SwiftSyntax510
+  SwiftSyntax -> SwiftSyntax602
+  SwiftSyntax -> _SwiftSyntaxCShims
+  SwiftSyntaxBuilder -> SwiftParser
+  SwiftSyntaxBuilder -> SwiftBasicFormat
+  SwiftSyntaxBuilder -> SwiftSyntax
+  SwiftSyntaxBuilder -> SwiftParserDiagnostics
+  SwiftSyntaxBuilder -> SwiftDiagnostics
+  SwiftSyntaxMacroExpansion -> SwiftSyntaxBuilder
+  SwiftSyntaxMacroExpansion -> SwiftDiagnostics
+  SwiftSyntaxMacroExpansion -> SwiftSyntaxMacros
+  SwiftSyntaxMacroExpansion -> SwiftSyntax
+  SwiftSyntaxMacroExpansion -> SwiftOperators
+  SwiftSyntaxMacros -> SwiftDiagnostics
+  SwiftSyntaxMacros -> SwiftParser
+  SwiftSyntaxMacros -> SwiftSyntaxBuilder
+  SwiftSyntaxMacros -> SwiftSyntax
+  SwiftSyntaxMacrosGenericTestSupport -> SwiftIDEUtils
+  SwiftSyntaxMacrosGenericTestSupport -> SwiftParser
+  SwiftSyntaxMacrosGenericTestSupport -> SwiftSyntaxMacros
+  SwiftSyntaxMacrosGenericTestSupport -> _SwiftSyntaxGenericTestSupport
+  SwiftSyntaxMacrosGenericTestSupport -> SwiftDiagnostics
+  SwiftSyntaxMacrosGenericTestSupport -> SwiftSyntaxMacroExpansion
+  SwiftSyntaxMacrosTestSupport -> SwiftSyntaxMacrosGenericTestSupport
+  SwiftSyntaxMacrosTestSupport -> SwiftSyntaxMacroExpansion
+  SwiftSyntaxMacrosTestSupport -> SwiftSyntax
+  SwiftSyntaxMacrosTestSupport -> SwiftSyntaxMacros
+  SwiftUINavigation -> IssueReporting
+  SwiftUINavigation -> UIKitNavigation
+  SwiftUINavigation -> CasePaths
+  UIKitNavigation -> ConcurrencyExtras
+  UIKitNavigation -> IssueReporting
+  UIKitNavigation -> SwiftNavigation
+  UIKitNavigation -> UIKitNavigationShim
+  XCTestDynamicOverlay -> IssueReporting
+  _RopeModule -> InternalCollectionsUtilities
+}
