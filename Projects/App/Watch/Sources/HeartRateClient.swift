@@ -38,7 +38,7 @@ extension DependencyValues {
 
 // MARK: - HeartRateActor (thread-safe implementation)
 
-private actor HeartRateActor: NSObject {
+private actor HeartRateActor {
     private let healthStore = HKHealthStore()
     private var workoutSession: HKWorkoutSession?
     private var workoutBuilder: HKLiveWorkoutBuilder?
@@ -92,6 +92,9 @@ private actor HeartRateActor: NSObject {
     }
 
     func stopWorkoutSession() async {
+        if let q = query {
+            healthStore.stop(q)
+        }
         query = nil
         continuation?.finish()
         continuation = nil
@@ -152,8 +155,17 @@ private actor HeartRateActor: NSObject {
     // MARK: - Stream
 
     func makeStream() -> AsyncStream<HeartRateSample> {
-        AsyncStream { continuation in
+        // 이전 소비자가 있으면 먼저 종료
+        continuation?.finish()
+        return AsyncStream { continuation in
+            continuation.onTermination = { [weak self] _ in
+                Task { await self?.clearContinuation() }
+            }
             self.continuation = continuation
         }
+    }
+
+    private func clearContinuation() {
+        continuation = nil
     }
 }

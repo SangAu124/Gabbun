@@ -142,7 +142,10 @@ public struct WatchMonitoringFeature {
                     .cancel(id: CancelID.algorithmTimer),
                     .cancel(id: CancelID.heartRateStream),
                     .cancel(id: CancelID.motionStream),
-                    .run { [motionClient] _ in await motionClient.stopUpdates() }
+                    .run { [motionClient, heartRateClient] _ in
+                        await motionClient.stopUpdates()
+                        try? await heartRateClient.stopWorkoutSession()
+                    }
                 )
 
             case let .tick(now):
@@ -153,16 +156,16 @@ public struct WatchMonitoringFeature {
 
             case let .heartRateSampleReceived(sample):
                 state.heartRateSamples.append(sample)
-                // 오래된 샘플 제거 (bufferWindow 이전 항목)
-                let cutoff = Date().addingTimeInterval(-Self.bufferWindowSeconds)
-                state.heartRateSamples = state.heartRateSamples.filter { $0.timestamp >= cutoff }
+                // 오래된 샘플 제거 (수신 샘플 기준으로 bufferWindow 이전 항목)
+                let hrCutoff = sample.timestamp.addingTimeInterval(-Self.bufferWindowSeconds)
+                state.heartRateSamples = state.heartRateSamples.filter { $0.timestamp >= hrCutoff }
                 return .none
 
             case let .motionSampleReceived(sample):
                 state.motionSamples.append(sample)
                 // 오래된 샘플 제거
-                let cutoff = Date().addingTimeInterval(-Self.bufferWindowSeconds)
-                state.motionSamples = state.motionSamples.filter { $0.timestamp >= cutoff }
+                let motionCutoff = sample.timestamp.addingTimeInterval(-Self.bufferWindowSeconds)
+                state.motionSamples = state.motionSamples.filter { $0.timestamp >= motionCutoff }
                 return .none
 
             // MARK: - 알고리즘 틱 (30초)
@@ -228,7 +231,11 @@ public struct WatchMonitoringFeature {
                     return .merge(
                         .cancel(id: CancelID.algorithmTimer),
                         .cancel(id: CancelID.heartRateStream),
-                        .cancel(id: CancelID.motionStream)
+                        .cancel(id: CancelID.motionStream),
+                        .run { [motionClient, heartRateClient] _ in
+                            await motionClient.stopUpdates()
+                            try? await heartRateClient.stopWorkoutSession()
+                        }
                     )
                 }
 
@@ -245,7 +252,10 @@ public struct WatchMonitoringFeature {
                     .cancel(id: CancelID.algorithmTimer),
                     .cancel(id: CancelID.heartRateStream),
                     .cancel(id: CancelID.motionStream),
-                    .run { [motionClient] _ in await motionClient.stopUpdates() },
+                    .run { [motionClient, heartRateClient] _ in
+                        await motionClient.stopUpdates()
+                        try? await heartRateClient.stopWorkoutSession()
+                    },
                     .run { send in
                         await send(.alarmFiredSent(Result {
                             let envelope = Envelope(type: .alarmFired, payload: payload)

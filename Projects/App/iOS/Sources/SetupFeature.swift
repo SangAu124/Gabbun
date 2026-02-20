@@ -53,7 +53,6 @@ public struct SetupFeature {
 
         // 폴백 알림
         case notificationPermissionResponse(Bool)
-        case scheduleNotificationResponse(Result<Void, Never>)
 
         // Watch → iOS 메시지 수신
         case messageReceived(TransportMessage)
@@ -162,7 +161,7 @@ public struct SetupFeature {
 
                     // 폴백 알림 스케줄 (enabled 상태이고 권한 있을 때)
                     if isEnabled && permissionGranted {
-                        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+                        var components = Calendar.current.dateComponents([.year, .month, .day], from: now)
                         components.hour = wakeHour
                         components.minute = wakeMinute
                         if let wakeTime = Calendar.current.date(from: components) {
@@ -196,12 +195,14 @@ public struct SetupFeature {
                 state.notificationPermissionGranted = granted
                 return .none
 
-            case .scheduleNotificationResponse:
-                return .none
-
             // MARK: - Watch → iOS 메시지 처리
 
             case let .messageReceived(message):
+                // alarmFired 수신 시 폴백 알림 즉시 취소
+                if let envelope: Envelope<AlarmFiredEventPayload> = try? message.decode(),
+                   envelope.type == .alarmFired {
+                    return .run { _ in await notificationClient.cancelWakeUpFallback() }
+                }
                 // sessionSummary 수신 시 폴백 알림 취소 + 리포트 업데이트
                 if let envelope: Envelope<SessionSummaryPayload> = try? message.decode(),
                    envelope.type == .sessionSummary {

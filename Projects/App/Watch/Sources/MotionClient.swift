@@ -83,9 +83,18 @@ private actor MotionActor {
     // MARK: - Stream
 
     func makeStream() -> AsyncStream<MotionSample> {
-        AsyncStream { continuation in
+        // 이전 소비자가 있으면 먼저 종료
+        continuation?.finish()
+        return AsyncStream { continuation in
+            continuation.onTermination = { [weak self] _ in
+                Task { await self?.clearContinuation() }
+            }
             self.continuation = continuation
         }
+    }
+
+    private func clearContinuation() {
+        continuation = nil
     }
 }
 
