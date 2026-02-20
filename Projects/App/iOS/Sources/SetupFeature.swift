@@ -20,6 +20,9 @@ public struct SetupFeature {
         public var errorMessage: String?
         public var isSyncing: Bool = false
 
+        // 폴백 알림 권한 상태
+        public var notificationPermissionGranted: Bool = false
+
         public init(
             wakeTimeHour: Int = 7,
             wakeTimeMinute: Int = 30,
@@ -47,31 +50,53 @@ public struct SetupFeature {
         case syncResponse(Result<Void, Error>)
         case updateConnectionStatus
         case connectionStatusUpdated(isReachable: Bool)
+
+        // 폴백 알림
+        case notificationPermissionResponse(Bool)
+
+        // Watch → iOS 메시지 수신
+        case messageReceived(TransportMessage)
+        case sessionSummaryReceived(WakeSessionSummary)
     }
 
     // MARK: - Dependencies
     @Dependency(\.wcSessionClient) var wcSessionClient
+    @Dependency(\.notificationClient) var notificationClient
     @Dependency(\.date.now) var now
     @Dependency(\.continuousClock) var clock
 
-    private enum CancelID { case connectionMonitor }
+    private enum CancelID {
+        case connectionMonitor
+        case messageStream
+    }
 
     // MARK: - Reducer
     public var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
             case .onAppear:
-                // WCSession 활성화 및 연결 상태 모니터링 시작
                 return .merge(
-                    .run { send in
-                        await wcSessionClient.activate()
-                    },
+                    // WCSession 활성화
+                    .run { _ in await wcSessionClient.activate() },
+                    // 연결 상태 모니터링
                     .run { send in
                         for await _ in clock.timer(interval: .seconds(1)) {
                             await send(.updateConnectionStatus)
                         }
                     }
-                    .cancellable(id: CancelID.connectionMonitor)
+                    .cancellable(id: CancelID.connectionMonitor),
+                    // Watch → iOS 메시지 스트림 수신
+                    .run { send in
+                        for await message in wcSessionClient.messages() {
+                            await send(.messageReceived(message))
+                        }
+                    }
+                    .cancellable(id: CancelID.messageStream),
+                    // 알림 권한 요청
+                    .run { send in
+                        let granted = await notificationClient.requestAuthorization()
+                        await send(.notificationPermissionResponse(granted))
+                    }
                 )
 
             case .wakeTimeHourChanged(let hour):
@@ -107,7 +132,6 @@ public struct SetupFeature {
                     enabled: state.enabled
                 )
 
-                // effectiveDate: 오늘 날짜 (YYYY-MM-DD)
                 let dateFormatter = DateFormatter()
                 dateFormatter.dateFormat = "yyyy-MM-dd"
                 let effectiveDate = dateFormatter.string(from: now)
@@ -122,12 +146,30 @@ public struct SetupFeature {
                     payload: payload
                 )
 
-                // updateApplicationContext 사용 (background에서도 전송 가능)
+                // 기상 시각 계산 (폴백 알림용)
+                let wakeHour = state.wakeTimeHour
+                let wakeMinute = state.wakeTimeMinute
+                let isEnabled = state.enabled
+                let permissionGranted = state.notificationPermissionGranted
+
                 return .run { send in
+                    // Watch로 스케줄 전송
                     await send(.syncResponse(Result {
                         let message = try TransportMessage(envelope: envelope)
                         try wcSessionClient.updateContext(message)
                     }))
+
+                    // 폴백 알림 스케줄 (enabled 상태이고 권한 있을 때)
+                    if isEnabled && permissionGranted {
+                        var components = Calendar.current.dateComponents([.year, .month, .day], from: now)
+                        components.hour = wakeHour
+                        components.minute = wakeMinute
+                        if let wakeTime = Calendar.current.date(from: components) {
+                            await notificationClient.scheduleWakeUpFallback(wakeTime)
+                        }
+                    } else if !isEnabled {
+                        await notificationClient.cancelWakeUpFallback()
+                    }
                 }
 
             case .syncResponse(.success):
@@ -142,13 +184,37 @@ public struct SetupFeature {
                 return .none
 
             case .updateConnectionStatus:
-                // isActivated: Watch가 페어링되어 있고 앱이 설치되어 있으면 true
-                // isReachable: 상대방 앱이 foreground일 때만 true (background 전송에는 불필요)
                 let isActivated = wcSessionClient.isActivated()
                 return .send(.connectionStatusUpdated(isReachable: isActivated))
 
             case .connectionStatusUpdated(let isReachable):
                 state.isReachable = isReachable
+                return .none
+
+            case .notificationPermissionResponse(let granted):
+                state.notificationPermissionGranted = granted
+                return .none
+
+            // MARK: - Watch → iOS 메시지 처리
+
+            case let .messageReceived(message):
+                // alarmFired 수신 시 폴백 알림 즉시 취소
+                if let envelope: Envelope<AlarmFiredEventPayload> = try? message.decode(),
+                   envelope.type == .alarmFired {
+                    return .run { _ in await notificationClient.cancelWakeUpFallback() }
+                }
+                // sessionSummary 수신 시 폴백 알림 취소 + 리포트 업데이트
+                if let envelope: Envelope<SessionSummaryPayload> = try? message.decode(),
+                   envelope.type == .sessionSummary {
+                    return .merge(
+                        .run { _ in await notificationClient.cancelWakeUpFallback() },
+                        .send(.sessionSummaryReceived(envelope.payload.summary))
+                    )
+                }
+                return .none
+
+            case .sessionSummaryReceived:
+                // 부모 AppFeature에서 처리 (ReportFeature로 라우팅)
                 return .none
             }
         }

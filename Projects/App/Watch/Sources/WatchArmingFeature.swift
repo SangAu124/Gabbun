@@ -71,7 +71,7 @@ public struct WatchArmingFeature {
         case delegate(Delegate)
 
         public enum Delegate: Equatable, Sendable {
-            case startMonitoring(targetWakeTime: Date, windowStartTime: Date)
+            case startMonitoring(targetWakeTime: Date, windowStartTime: Date, sensitivity: AlarmSchedule.Sensitivity)
             case alarmTriggered
             case sessionEnded
         }
@@ -132,9 +132,11 @@ public struct WatchArmingFeature {
         if now >= windowStartTime {
             if previousState != .monitoring && previousState != .triggered {
                 state.armingState = .monitoring
+                let sensitivity = schedule.sensitivity
                 return .send(.delegate(.startMonitoring(
                     targetWakeTime: targetWakeTime,
-                    windowStartTime: windowStartTime
+                    windowStartTime: windowStartTime,
+                    sensitivity: sensitivity
                 )))
             }
             return .none

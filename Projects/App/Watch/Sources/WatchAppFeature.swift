@@ -120,11 +120,12 @@ public struct WatchAppFeature {
                 return .none
 
             // MARK: - Arming Delegate Actions
-            case let .arming(.delegate(.startMonitoring(targetWakeTime, windowStartTime))):
-                // 모니터링 시작
+            case let .arming(.delegate(.startMonitoring(targetWakeTime, windowStartTime, sensitivity))):
+                // 모니터링 시작 (sensitivity까지 전달)
                 return .send(.monitoring(.startMonitoring(
                     targetWakeTime: targetWakeTime,
-                    windowStartTime: windowStartTime
+                    windowStartTime: windowStartTime,
+                    sensitivity: sensitivity
                 )))
 
             case .arming(.delegate(.alarmTriggered)):
