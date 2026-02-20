@@ -18,9 +18,9 @@ public struct WatchMonitoringFeature {
     @ObservableState
     public struct State: Equatable {
         public var monitoringState: MonitoringState = .idle
-        public var simulationMode: SensorSimulationMode = .deepSleep
+        public var sensitivity: AlarmSchedule.Sensitivity = .balanced
 
-        // 알고리즘 입력
+        // 알고리즘 입력 (스트리밍으로 누적)
         public var motionSamples: [MotionSample] = []
         public var heartRateSamples: [HeartRateSample] = []
         public var recentScores: [ScoreUpdate] = []
@@ -39,9 +39,8 @@ public struct WatchMonitoringFeature {
 
         public init() {}
 
-        // 경과 시간 (윈도우 시작 기준)
+        // 경과 시간 (tick 기준)
         public var elapsedSeconds: Int {
-            guard let windowStart = windowStartTime else { return 0 }
             return max(0, tickCount)
         }
 
@@ -58,10 +57,13 @@ public struct WatchMonitoringFeature {
     // MARK: - Action
     public enum Action: Sendable {
         // 외부 이벤트
-        case startMonitoring(targetWakeTime: Date, windowStartTime: Date)
+        case startMonitoring(targetWakeTime: Date, windowStartTime: Date, sensitivity: AlarmSchedule.Sensitivity)
         case stopMonitoring
-        case setSimulationMode(SensorSimulationMode)
         case tick(Date) // 매초 tick (now 업데이트용)
+
+        // 실시간 센서 스트림
+        case heartRateSampleReceived(HeartRateSample)
+        case motionSampleReceived(MotionSample)
 
         // 내부 타이머 (30초 tick)
         case algorithmTick(Date)
@@ -75,25 +77,29 @@ public struct WatchMonitoringFeature {
     }
 
     // MARK: - Dependencies
-    @Dependency(\.sensorSimulator) var sensorSimulator
+    @Dependency(\.heartRateClient) var heartRateClient
+    @Dependency(\.motionClient) var motionClient
     @Dependency(\.wcSessionClient) var wcSessionClient
     @Dependency(\.continuousClock) var clock
 
     private enum CancelID {
         case algorithmTimer
+        case heartRateStream
+        case motionStream
     }
 
-    // MARK: - Algorithm
-    private let algorithm = WakeabilityAlgorithm()
+    // 샘플 버퍼 유지 시간 (알고리즘 윈도우보다 넉넉하게)
+    private static let bufferWindowSeconds: TimeInterval = 150.0
 
     // MARK: - Reducer
     public var body: some ReducerOf<Self> {
         Reduce { state, action in
             switch action {
-            case let .startMonitoring(targetWakeTime, windowStartTime):
+            case let .startMonitoring(targetWakeTime, windowStartTime, sensitivity):
                 state.monitoringState = .monitoring
                 state.targetWakeTime = targetWakeTime
                 state.windowStartTime = windowStartTime
+                state.sensitivity = sensitivity
                 state.tickCount = 0
                 state.recentScores = []
                 state.currentScore = nil
@@ -101,26 +107,65 @@ public struct WatchMonitoringFeature {
                 state.motionSamples = []
                 state.heartRateSamples = []
 
-                // 30초 타이머 시작
-                return .run { send in
-                    for await _ in clock.timer(interval: .seconds(30)) {
-                        await send(.algorithmTick(Date()))
+                return .merge(
+                    // 30초 알고리즘 타이머
+                    .run { send in
+                        for await _ in clock.timer(interval: .seconds(30)) {
+                            await send(.algorithmTick(Date()))
+                        }
                     }
-                }
-                .cancellable(id: CancelID.algorithmTimer)
+                    .cancellable(id: CancelID.algorithmTimer),
+
+                    // 심박 스트리밍
+                    .run { [heartRateClient] send in
+                        try await heartRateClient.startWorkoutSession()
+                        for await sample in heartRateClient.heartRateSamples() {
+                            await send(.heartRateSampleReceived(sample))
+                        }
+                    }
+                    .cancellable(id: CancelID.heartRateStream),
+
+                    // 가속도 스트리밍
+                    .run { [motionClient] send in
+                        try await motionClient.startUpdates()
+                        for await sample in motionClient.motionSamples() {
+                            await send(.motionSampleReceived(sample))
+                        }
+                    }
+                    .cancellable(id: CancelID.motionStream)
+                )
 
             case .stopMonitoring:
                 state.monitoringState = .idle
                 state.tickCount = 0
-                return .cancel(id: CancelID.algorithmTimer)
-
-            case let .setSimulationMode(mode):
-                state.simulationMode = mode
-                return .none
+                return .merge(
+                    .cancel(id: CancelID.algorithmTimer),
+                    .cancel(id: CancelID.heartRateStream),
+                    .cancel(id: CancelID.motionStream),
+                    .run { [motionClient] _ in await motionClient.stopUpdates() }
+                )
 
             case let .tick(now):
                 state.now = now
                 return .none
+
+            // MARK: - 실시간 센서 샘플 누적
+
+            case let .heartRateSampleReceived(sample):
+                state.heartRateSamples.append(sample)
+                // 오래된 샘플 제거 (bufferWindow 이전 항목)
+                let cutoff = Date().addingTimeInterval(-Self.bufferWindowSeconds)
+                state.heartRateSamples = state.heartRateSamples.filter { $0.timestamp >= cutoff }
+                return .none
+
+            case let .motionSampleReceived(sample):
+                state.motionSamples.append(sample)
+                // 오래된 샘플 제거
+                let cutoff = Date().addingTimeInterval(-Self.bufferWindowSeconds)
+                state.motionSamples = state.motionSamples.filter { $0.timestamp >= cutoff }
+                return .none
+
+            // MARK: - 알고리즘 틱 (30초)
 
             case let .algorithmTick(now):
                 guard state.monitoringState == .monitoring,
@@ -130,18 +175,16 @@ public struct WatchMonitoringFeature {
 
                 state.tickCount += 1
 
-                // 센서 시뮬레이터에서 샘플 생성
-                let motionSamples = sensorSimulator.generateMotionSamples(state.simulationMode, now)
-                let hrSamples = sensorSimulator.generateHeartRateSamples(state.simulationMode, now)
+                // 민감도에 따른 임계값 결정
+                let threshold = sensitivityThreshold(state.sensitivity)
+                let algorithm = WakeabilityAlgorithm(
+                    triggerDecider: TriggerDecider(threshold: threshold)
+                )
 
-                // 샘플 업데이트 (누적 대신 최신 윈도우만 사용)
-                state.motionSamples = motionSamples
-                state.heartRateSamples = hrSamples
-
-                // 점수 계산
+                // 점수 계산 (누적된 실제 센서 샘플 사용)
                 let score = algorithm.computeScore(
-                    motionSamples: motionSamples,
-                    hrSamples: hrSamples,
+                    motionSamples: state.motionSamples,
+                    hrSamples: state.heartRateSamples,
                     currentTime: now
                 )
 
@@ -172,7 +215,7 @@ public struct WatchMonitoringFeature {
 
                 return .none
 
-            case let .scoreComputed(score, timestamp):
+            case let .scoreComputed(score, _):
                 state.currentScore = score
                 return .none
 
@@ -181,10 +224,12 @@ public struct WatchMonitoringFeature {
                 state.lastTriggerTime = event.timestamp
                 state.monitoringState = .triggered
 
-                // 타이머 취소
-                // iOS로 alarmFired 메시지 전송
                 guard let targetWakeTime = state.targetWakeTime else {
-                    return .cancel(id: CancelID.algorithmTimer)
+                    return .merge(
+                        .cancel(id: CancelID.algorithmTimer),
+                        .cancel(id: CancelID.heartRateStream),
+                        .cancel(id: CancelID.motionStream)
+                    )
                 }
 
                 let payload = AlarmFiredEventPayload(
@@ -198,6 +243,9 @@ public struct WatchMonitoringFeature {
 
                 return .merge(
                     .cancel(id: CancelID.algorithmTimer),
+                    .cancel(id: CancelID.heartRateStream),
+                    .cancel(id: CancelID.motionStream),
+                    .run { [motionClient] _ in await motionClient.stopUpdates() },
                     .run { send in
                         await send(.alarmFiredSent(Result {
                             let envelope = Envelope(type: .alarmFired, payload: payload)
@@ -208,14 +256,22 @@ public struct WatchMonitoringFeature {
                 )
 
             case .alarmFiredSent(.success):
-                // 전송 성공
                 return .none
 
             case let .alarmFiredSent(.failure(error)):
-                // 전송 실패 (로그만, 알람은 계속 울림)
                 print("[MonitoringFeature] alarmFired 전송 실패: \(error.localizedDescription)")
                 return .none
             }
         }
+    }
+}
+
+// MARK: - Sensitivity → Threshold
+
+private func sensitivityThreshold(_ sensitivity: AlarmSchedule.Sensitivity) -> Double {
+    switch sensitivity {
+    case .conservative: return 0.80
+    case .balanced:     return 0.72
+    case .sensitive:    return 0.60
     }
 }

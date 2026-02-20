@@ -13,7 +13,8 @@ struct GabbunWatchApp: App {
             WatchAppFeature()
         } withDependencies: {
             $0.wcSessionClient = .liveValue
-            $0.sensorSimulator = .liveValue
+            $0.heartRateClient = .liveValue
+            $0.motionClient = .liveValue
         }
     }
 
