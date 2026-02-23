@@ -142,29 +142,29 @@ public struct WatchAppFeature {
             // MARK: - Monitoring Actions
             case let .monitoring(.triggerDetected(event)):
                 // 알람 트리거 → arming 상태 업데이트 + 알람 화면 활성화
-                WatchArmingFeature.setTriggered(&state.arming)
-
-                // 알람 발화
-                return .send(.alarm(.alarmTriggered(
-                    event,
-                    targetWakeTime: state.monitoring.targetWakeTime ?? Date(),
-                    windowStartTime: state.monitoring.windowStartTime ?? Date(),
-                    recentScores: state.monitoring.recentScores
-                )))
+                let targetWakeTime = state.monitoring.targetWakeTime ?? Date()
+                let windowStartTime = state.monitoring.windowStartTime ?? Date()
+                let recentScores = state.monitoring.recentScores
+                return .merge(
+                    .send(.arming(.setTriggered)),
+                    .send(.alarm(.alarmTriggered(
+                        event,
+                        targetWakeTime: targetWakeTime,
+                        windowStartTime: windowStartTime,
+                        recentScores: recentScores
+                    )))
+                )
 
             case .monitoring:
                 return .none
 
             // MARK: - Alarm Delegate Actions
-            case let .alarm(.delegate(.alarmDismissed(summary))):
-                // 알람 종료 → 세션 종료 처리
-                // Arming 상태를 idle로 전환
-                state.arming.armingState = .idle
-                state.arming.schedule = nil
-                state.arming.effectiveDate = nil
-
-                // 모니터링 중지
-                return .send(.monitoring(.stopMonitoring))
+            case .alarm(.delegate(.alarmDismissed)):
+                // 알람 종료 → arming 리셋 + 모니터링 중지 (자식 Reducer에 액션으로 위임)
+                return .merge(
+                    .send(.arming(.resetSession)),
+                    .send(.monitoring(.stopMonitoring))
+                )
 
             case .alarm(.delegate(.alarmSnoozed)):
                 // 스누즈 → 별도 처리 없음 (알람 화면 유지, cooldown과 무관)

@@ -161,15 +161,15 @@ public struct WatchAlarmFeature {
             case .playHaptic:
                 // 햅틱 재생 (ringing 상태에서만)
                 guard state.alarmState == .ringing else { return .none }
-                WKInterfaceDevice.current().play(.notification)
-                return .none
+                return .run { _ in WKInterfaceDevice.current().play(.notification) }
 
             case .sessionSummarySent(.success):
                 return .none
 
             case let .sessionSummarySent(.failure(error)):
-                print("[AlarmFeature] sessionSummary 전송 실패: \(error.localizedDescription)")
-                return .none
+                return .run { _ in
+                    print("[AlarmFeature] sessionSummary 전송 실패: \(error.localizedDescription)")
+                }
 
             case .delegate:
                 return .none

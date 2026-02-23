@@ -67,6 +67,10 @@ public struct WatchArmingFeature {
         case scheduleCancelled
         case tick(Date)
 
+        // 부모 Reducer가 내려보내는 상태 전환 명령
+        case setTriggered
+        case resetSession
+
         // 상태 전환 이벤트 (부모에게 전달)
         case delegate(Delegate)
 
@@ -96,6 +100,16 @@ public struct WatchArmingFeature {
             case let .tick(now):
                 state.now = now
                 return evaluateStateChange(&state)
+
+            case .setTriggered:
+                state.armingState = .triggered
+                return .none
+
+            case .resetSession:
+                state.armingState = .idle
+                state.schedule = nil
+                state.effectiveDate = nil
+                return .none
 
             case .delegate:
                 // 부모에서 처리
@@ -153,8 +167,4 @@ public struct WatchArmingFeature {
         return .none
     }
 
-    // 외부에서 호출하여 triggered 상태로 전환
-    public static func setTriggered(_ state: inout State) {
-        state.armingState = .triggered
-    }
 }

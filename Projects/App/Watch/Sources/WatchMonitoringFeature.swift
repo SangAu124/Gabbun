@@ -281,8 +281,9 @@ public struct WatchMonitoringFeature {
                 return .none
 
             case let .alarmFiredSent(.failure(error)):
-                print("[MonitoringFeature] alarmFired 전송 실패: \(error.localizedDescription)")
-                return .none
+                return .run { _ in
+                    print("[MonitoringFeature] alarmFired 전송 실패: \(error.localizedDescription)")
+                }
             }
         }
     }
