@@ -10,7 +10,8 @@ public struct HeartRateClient: Sendable {
     public var requestAuthorization: @Sendable () async throws -> Void = { }
     public var startWorkoutSession: @Sendable () async throws -> Void = { }
     public var stopWorkoutSession: @Sendable () async throws -> Void = { }
-    public var heartRateSamples: @Sendable () -> AsyncStream<HeartRateSample> = { .finished }
+    // async: actor-isolated makeStream()을 올바른 concurrency context에서 호출
+    public var heartRateSamples: @Sendable () async -> AsyncStream<HeartRateSample> = { .finished }
 }
 
 // MARK: - DependencyKey
@@ -22,7 +23,7 @@ extension HeartRateClient: DependencyKey {
             requestAuthorization: { try await actor.requestAuthorization() },
             startWorkoutSession: { try await actor.startWorkoutSession() },
             stopWorkoutSession: { await actor.stopWorkoutSession() },
-            heartRateSamples: { actor.makeStream() }
+            heartRateSamples: { await actor.makeStream() }
         )
     }()
 

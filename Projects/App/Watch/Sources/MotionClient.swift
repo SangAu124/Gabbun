@@ -9,7 +9,8 @@ import SharedDomain
 public struct MotionClient: Sendable {
     public var startUpdates: @Sendable () async throws -> Void = { }
     public var stopUpdates: @Sendable () async -> Void = { }
-    public var motionSamples: @Sendable () -> AsyncStream<MotionSample> = { .finished }
+    // async: actor-isolated makeStream()을 올바른 concurrency context에서 호출
+    public var motionSamples: @Sendable () async -> AsyncStream<MotionSample> = { .finished }
 }
 
 // MARK: - DependencyKey
@@ -20,7 +21,7 @@ extension MotionClient: DependencyKey {
         return MotionClient(
             startUpdates: { try await actor.startUpdates() },
             stopUpdates: { await actor.stopUpdates() },
-            motionSamples: { actor.makeStream() }
+            motionSamples: { await actor.makeStream() }
         )
     }()
 
