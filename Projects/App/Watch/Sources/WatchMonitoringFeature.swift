@@ -69,7 +69,6 @@ public struct WatchMonitoringFeature {
         case algorithmTick(Date)
 
         // 알고리즘 결과
-        case scoreComputed(WakeabilityScore, Date)
         case triggerDetected(TriggerEvent)
 
         // iOS 전송 완료
@@ -81,6 +80,7 @@ public struct WatchMonitoringFeature {
     @Dependency(\.motionClient) var motionClient
     @Dependency(\.wcSessionClient) var wcSessionClient
     @Dependency(\.continuousClock) var clock
+    @Dependency(\.date) var date
 
     private enum CancelID {
         case algorithmTimer
@@ -112,9 +112,9 @@ public struct WatchMonitoringFeature {
 
                 return .merge(
                     // 30초 알고리즘 타이머
-                    .run { send in
+                    .run { [date] send in
                         for await _ in clock.timer(interval: .seconds(30)) {
-                            await send(.algorithmTick(Date()))
+                            await send(.algorithmTick(date.now))
                         }
                     }
                     .cancellable(id: CancelID.algorithmTimer),
@@ -230,25 +230,13 @@ public struct WatchMonitoringFeature {
 
                 return .none
 
-            case let .scoreComputed(score, _):
-                state.currentScore = score
-                return .none
-
             case let .triggerDetected(event):
                 state.triggerEvent = event
                 state.lastTriggerTime = event.timestamp
                 state.monitoringState = .triggered
 
                 guard let targetWakeTime = state.targetWakeTime else {
-                    return .merge(
-                        .cancel(id: CancelID.algorithmTimer),
-                        .cancel(id: CancelID.heartRateStream),
-                        .cancel(id: CancelID.motionStream),
-                        .run { [motionClient, heartRateClient] _ in
-                            await motionClient.stopUpdates()
-                            try? await heartRateClient.stopWorkoutSession()
-                        }
-                    )
+                    return stopSensorsEffect()
                 }
 
                 let payload = AlarmFiredEventPayload(
@@ -261,13 +249,7 @@ public struct WatchMonitoringFeature {
                 )
 
                 return .merge(
-                    .cancel(id: CancelID.algorithmTimer),
-                    .cancel(id: CancelID.heartRateStream),
-                    .cancel(id: CancelID.motionStream),
-                    .run { [motionClient, heartRateClient] _ in
-                        await motionClient.stopUpdates()
-                        try? await heartRateClient.stopWorkoutSession()
-                    },
+                    stopSensorsEffect(),
                     .run { send in
                         await send(.alarmFiredSent(Result {
                             let envelope = Envelope(type: .alarmFired, payload: payload)
@@ -286,6 +268,22 @@ public struct WatchMonitoringFeature {
                 }
             }
         }
+    }
+}
+
+// MARK: - Private Helpers
+
+private extension WatchMonitoringFeature {
+    func stopSensorsEffect() -> Effect<Action> {
+        .merge(
+            .cancel(id: CancelID.algorithmTimer),
+            .cancel(id: CancelID.heartRateStream),
+            .cancel(id: CancelID.motionStream),
+            .run { [motionClient, heartRateClient] _ in
+                await motionClient.stopUpdates()
+                try? await heartRateClient.stopWorkoutSession()
+            }
+        )
     }
 }
 

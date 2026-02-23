@@ -104,11 +104,12 @@ public struct WatchAppFeature {
                 return handleMessage(message, state: &state)
 
             case .tick:
-                state.now = dateNow
+                let now = dateNow
+                state.now = now
                 return .merge(
-                    .send(.arming(.tick(dateNow))),
-                    .send(.monitoring(.tick(dateNow))),
-                    .send(.alarm(.tick(dateNow)))
+                    .send(.arming(.tick(now))),
+                    .send(.monitoring(.tick(now))),
+                    .send(.alarm(.tick(now)))
                 )
 
             case .updateReachability:
@@ -127,10 +128,6 @@ public struct WatchAppFeature {
                     windowStartTime: windowStartTime,
                     sensitivity: sensitivity
                 )))
-
-            case .arming(.delegate(.alarmTriggered)):
-                // 알람 발화됨 (arming에서 triggered로 전환 필요 시)
-                return .none
 
             case .arming(.delegate(.sessionEnded)):
                 // 세션 종료 → 모니터링 중지
@@ -178,27 +175,16 @@ public struct WatchAppFeature {
 
     // MARK: - Message Handling
     private func handleMessage(_ message: TransportMessage, state: inout State) -> Effect<Action> {
-        // updateSchedule 메시지 처리
-        if let envelope: Envelope<UpdateSchedulePayload> = try? message.decode() {
-            if envelope.type == .updateSchedule {
-                let payload = envelope.payload
-                return .send(.arming(.scheduleReceived(
-                    schedule: payload.schedule,
-                    effectiveDate: payload.effectiveDate
-                )))
-            }
-        }
-
-        // cancelSchedule 메시지 처리
-        if let envelope: Envelope<CancelSchedulePayload> = try? message.decode() {
-            if envelope.type == .cancelSchedule {
-                return .send(.arming(.scheduleCancelled))
-            }
-        }
-
-        // ping 메시지 처리 (무시)
-        if let _: Envelope<PingPayload> = try? message.decode() {
-            return .none
+        if let envelope: Envelope<UpdateSchedulePayload> = try? message.decode(),
+           envelope.type == .updateSchedule {
+            let payload = envelope.payload
+            return .send(.arming(.scheduleReceived(
+                schedule: payload.schedule,
+                effectiveDate: payload.effectiveDate
+            )))
+        } else if let envelope: Envelope<CancelSchedulePayload> = try? message.decode(),
+                  envelope.type == .cancelSchedule {
+            return .send(.arming(.scheduleCancelled))
         }
 
         return .none

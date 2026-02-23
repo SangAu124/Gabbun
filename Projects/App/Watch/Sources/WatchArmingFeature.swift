@@ -79,7 +79,6 @@ public struct WatchArmingFeature {
 
         public enum Delegate: Equatable, Sendable {
             case startMonitoring(targetWakeTime: Date, windowStartTime: Date, sensitivity: AlarmSchedule.Sensitivity)
-            case alarmTriggered
             case sessionEnded
         }
     }

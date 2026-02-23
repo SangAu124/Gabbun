@@ -116,24 +116,20 @@ public struct WatchAlarmFeature {
             case .snoozeTriggered:
                 // 스누즈 타이머 만료 → 다시 울림
                 state.alarmState = .ringing
-                return startHapticLoop()
+                return .merge(
+                    .cancel(id: CancelID.snoozeTimer),
+                    startHapticLoop()
+                )
 
             case let .tick(now):
                 state.now = now
-
-                // 스누즈 중 타이머 만료 체크
-                if case let .snoozed(resumeAt) = state.alarmState {
-                    if now >= resumeAt {
-                        return .send(.snoozeTriggered)
-                    }
-                }
                 return .none
 
             case .stopTapped:
                 state.alarmState = .dismissed
 
                 // 세션 요약 생성
-                let summary = buildSessionSummary(state: state, dismissed: true)
+                let summary = buildSessionSummary(state: state)
 
                 return .merge(
                     .cancel(id: CancelID.hapticTimer),
@@ -192,7 +188,7 @@ public struct WatchAlarmFeature {
         )
     }
 
-    private func buildSessionSummary(state: State, dismissed: Bool) -> WakeSessionSummary {
+    private func buildSessionSummary(state: State) -> WakeSessionSummary {
         guard let triggerEvent = state.triggerEvent,
               let windowStart = state.windowStartTime,
               let targetWake = state.targetWakeTime else {
