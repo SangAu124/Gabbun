@@ -180,15 +180,16 @@ public struct WatchAlarmFeature {
     // MARK: - Private Helpers
 
     private func startHapticLoop() -> Effect<Action> {
-        // 즉시 한 번 재생 + 반복 타이머
-        WKInterfaceDevice.current().play(.notification)
-
-        return .run { send in
-            for await _ in clock.timer(interval: .seconds(Self.hapticIntervalSeconds)) {
-                await send(.playHaptic)
+        // 즉시 1회 + 반복 타이머 — 모두 .run으로 분리하여 Reducer 순수성 유지
+        return .merge(
+            .run { _ in WKInterfaceDevice.current().play(.notification) },
+            .run { send in
+                for await _ in clock.timer(interval: .seconds(Self.hapticIntervalSeconds)) {
+                    await send(.playHaptic)
+                }
             }
-        }
-        .cancellable(id: CancelID.hapticTimer)
+            .cancellable(id: CancelID.hapticTimer)
+        )
     }
 
     private func buildSessionSummary(state: State, dismissed: Bool) -> WakeSessionSummary {
