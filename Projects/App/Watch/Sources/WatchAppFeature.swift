@@ -178,17 +178,6 @@ public struct WatchAppFeature {
 
     // MARK: - Message Handling
     private func handleMessage(_ message: TransportMessage, state: inout State) -> Effect<Action> {
-        // 메시지 타입 먼저 확인
-        guard let typeEnvelope: Envelope<PingPayload> = try? message.decode(),
-              let _ = MessageType(rawValue: typeEnvelope.type.rawValue) else {
-            // fallback: raw type 파싱 시도
-            return parseAndHandleMessage(message, state: &state)
-        }
-
-        return parseAndHandleMessage(message, state: &state)
-    }
-
-    private func parseAndHandleMessage(_ message: TransportMessage, state: inout State) -> Effect<Action> {
         // updateSchedule 메시지 처리
         if let envelope: Envelope<UpdateSchedulePayload> = try? message.decode() {
             if envelope.type == .updateSchedule {

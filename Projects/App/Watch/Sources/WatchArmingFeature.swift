@@ -52,12 +52,15 @@ public struct WatchArmingFeature {
         public init() {}
 
         // Helper: effectiveDate + wakeTimeLocal → Date
+        private static let wakeTimeFormatter: DateFormatter = {
+            let f = DateFormatter()
+            f.dateFormat = "yyyy-MM-dd HH:mm"
+            f.timeZone = TimeZone.current
+            return f
+        }()
+
         private static func parseTargetWakeTime(effectiveDate: String, wakeTimeLocal: String) -> Date? {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd HH:mm"
-            formatter.timeZone = TimeZone.current
-            let dateString = "\(effectiveDate) \(wakeTimeLocal)"
-            return formatter.date(from: dateString)
+            wakeTimeFormatter.date(from: "\(effectiveDate) \(wakeTimeLocal)")
         }
     }
 
