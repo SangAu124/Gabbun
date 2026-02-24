@@ -116,24 +116,20 @@ public struct WatchAlarmFeature {
             case .snoozeTriggered:
                 // 스누즈 타이머 만료 → 다시 울림
                 state.alarmState = .ringing
-                return startHapticLoop()
+                return .merge(
+                    .cancel(id: CancelID.snoozeTimer),
+                    startHapticLoop()
+                )
 
             case let .tick(now):
                 state.now = now
-
-                // 스누즈 중 타이머 만료 체크
-                if case let .snoozed(resumeAt) = state.alarmState {
-                    if now >= resumeAt {
-                        return .send(.snoozeTriggered)
-                    }
-                }
                 return .none
 
             case .stopTapped:
                 state.alarmState = .dismissed
 
                 // 세션 요약 생성
-                let summary = buildSessionSummary(state: state, dismissed: true)
+                let summary = buildSessionSummary(state: state)
 
                 return .merge(
                     .cancel(id: CancelID.hapticTimer),
@@ -161,15 +157,15 @@ public struct WatchAlarmFeature {
             case .playHaptic:
                 // 햅틱 재생 (ringing 상태에서만)
                 guard state.alarmState == .ringing else { return .none }
-                WKInterfaceDevice.current().play(.notification)
-                return .none
+                return .run { _ in WKInterfaceDevice.current().play(.notification) }
 
             case .sessionSummarySent(.success):
                 return .none
 
             case let .sessionSummarySent(.failure(error)):
-                print("[AlarmFeature] sessionSummary 전송 실패: \(error.localizedDescription)")
-                return .none
+                return .run { _ in
+                    print("[AlarmFeature] sessionSummary 전송 실패: \(error.localizedDescription)")
+                }
 
             case .delegate:
                 return .none
@@ -180,18 +176,19 @@ public struct WatchAlarmFeature {
     // MARK: - Private Helpers
 
     private func startHapticLoop() -> Effect<Action> {
-        // 즉시 한 번 재생 + 반복 타이머
-        WKInterfaceDevice.current().play(.notification)
-
-        return .run { send in
-            for await _ in clock.timer(interval: .seconds(Self.hapticIntervalSeconds)) {
-                await send(.playHaptic)
+        // 즉시 1회 + 반복 타이머 — 모두 .run으로 분리하여 Reducer 순수성 유지
+        return .merge(
+            .run { _ in WKInterfaceDevice.current().play(.notification) },
+            .run { send in
+                for await _ in clock.timer(interval: .seconds(Self.hapticIntervalSeconds)) {
+                    await send(.playHaptic)
+                }
             }
-        }
-        .cancellable(id: CancelID.hapticTimer)
+            .cancellable(id: CancelID.hapticTimer)
+        )
     }
 
-    private func buildSessionSummary(state: State, dismissed: Bool) -> WakeSessionSummary {
+    private func buildSessionSummary(state: State) -> WakeSessionSummary {
         guard let triggerEvent = state.triggerEvent,
               let windowStart = state.windowStartTime,
               let targetWake = state.targetWakeTime else {

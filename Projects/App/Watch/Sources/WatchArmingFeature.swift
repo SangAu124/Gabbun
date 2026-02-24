@@ -52,12 +52,15 @@ public struct WatchArmingFeature {
         public init() {}
 
         // Helper: effectiveDate + wakeTimeLocal → Date
+        private static let wakeTimeFormatter: DateFormatter = {
+            let f = DateFormatter()
+            f.dateFormat = "yyyy-MM-dd HH:mm"
+            f.timeZone = TimeZone.current
+            return f
+        }()
+
         private static func parseTargetWakeTime(effectiveDate: String, wakeTimeLocal: String) -> Date? {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd HH:mm"
-            formatter.timeZone = TimeZone.current
-            let dateString = "\(effectiveDate) \(wakeTimeLocal)"
-            return formatter.date(from: dateString)
+            wakeTimeFormatter.date(from: "\(effectiveDate) \(wakeTimeLocal)")
         }
     }
 
@@ -67,12 +70,15 @@ public struct WatchArmingFeature {
         case scheduleCancelled
         case tick(Date)
 
+        // 부모 Reducer가 내려보내는 상태 전환 명령
+        case setTriggered
+        case resetSession
+
         // 상태 전환 이벤트 (부모에게 전달)
         case delegate(Delegate)
 
         public enum Delegate: Equatable, Sendable {
             case startMonitoring(targetWakeTime: Date, windowStartTime: Date, sensitivity: AlarmSchedule.Sensitivity)
-            case alarmTriggered
             case sessionEnded
         }
     }
@@ -96,6 +102,16 @@ public struct WatchArmingFeature {
             case let .tick(now):
                 state.now = now
                 return evaluateStateChange(&state)
+
+            case .setTriggered:
+                state.armingState = .triggered
+                return .none
+
+            case .resetSession:
+                state.armingState = .idle
+                state.schedule = nil
+                state.effectiveDate = nil
+                return .none
 
             case .delegate:
                 // 부모에서 처리
@@ -153,8 +169,4 @@ public struct WatchArmingFeature {
         return .none
     }
 
-    // 외부에서 호출하여 triggered 상태로 전환
-    public static func setTriggered(_ state: inout State) {
-        state.armingState = .triggered
-    }
 }

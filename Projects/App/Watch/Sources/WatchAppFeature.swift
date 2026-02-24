@@ -104,11 +104,12 @@ public struct WatchAppFeature {
                 return handleMessage(message, state: &state)
 
             case .tick:
-                state.now = dateNow
+                let now = dateNow
+                state.now = now
                 return .merge(
-                    .send(.arming(.tick(dateNow))),
-                    .send(.monitoring(.tick(dateNow))),
-                    .send(.alarm(.tick(dateNow)))
+                    .send(.arming(.tick(now))),
+                    .send(.monitoring(.tick(now))),
+                    .send(.alarm(.tick(now)))
                 )
 
             case .updateReachability:
@@ -128,10 +129,6 @@ public struct WatchAppFeature {
                     sensitivity: sensitivity
                 )))
 
-            case .arming(.delegate(.alarmTriggered)):
-                // 알람 발화됨 (arming에서 triggered로 전환 필요 시)
-                return .none
-
             case .arming(.delegate(.sessionEnded)):
                 // 세션 종료 → 모니터링 중지
                 return .send(.monitoring(.stopMonitoring))
@@ -142,29 +139,29 @@ public struct WatchAppFeature {
             // MARK: - Monitoring Actions
             case let .monitoring(.triggerDetected(event)):
                 // 알람 트리거 → arming 상태 업데이트 + 알람 화면 활성화
-                WatchArmingFeature.setTriggered(&state.arming)
-
-                // 알람 발화
-                return .send(.alarm(.alarmTriggered(
-                    event,
-                    targetWakeTime: state.monitoring.targetWakeTime ?? Date(),
-                    windowStartTime: state.monitoring.windowStartTime ?? Date(),
-                    recentScores: state.monitoring.recentScores
-                )))
+                let targetWakeTime = state.monitoring.targetWakeTime ?? Date()
+                let windowStartTime = state.monitoring.windowStartTime ?? Date()
+                let recentScores = state.monitoring.recentScores
+                return .merge(
+                    .send(.arming(.setTriggered)),
+                    .send(.alarm(.alarmTriggered(
+                        event,
+                        targetWakeTime: targetWakeTime,
+                        windowStartTime: windowStartTime,
+                        recentScores: recentScores
+                    )))
+                )
 
             case .monitoring:
                 return .none
 
             // MARK: - Alarm Delegate Actions
-            case let .alarm(.delegate(.alarmDismissed(summary))):
-                // 알람 종료 → 세션 종료 처리
-                // Arming 상태를 idle로 전환
-                state.arming.armingState = .idle
-                state.arming.schedule = nil
-                state.arming.effectiveDate = nil
-
-                // 모니터링 중지
-                return .send(.monitoring(.stopMonitoring))
+            case .alarm(.delegate(.alarmDismissed)):
+                // 알람 종료 → arming 리셋 + 모니터링 중지 (자식 Reducer에 액션으로 위임)
+                return .merge(
+                    .send(.arming(.resetSession)),
+                    .send(.monitoring(.stopMonitoring))
+                )
 
             case .alarm(.delegate(.alarmSnoozed)):
                 // 스누즈 → 별도 처리 없음 (알람 화면 유지, cooldown과 무관)
@@ -178,38 +175,16 @@ public struct WatchAppFeature {
 
     // MARK: - Message Handling
     private func handleMessage(_ message: TransportMessage, state: inout State) -> Effect<Action> {
-        // 메시지 타입 먼저 확인
-        guard let typeEnvelope: Envelope<PingPayload> = try? message.decode(),
-              let _ = MessageType(rawValue: typeEnvelope.type.rawValue) else {
-            // fallback: raw type 파싱 시도
-            return parseAndHandleMessage(message, state: &state)
-        }
-
-        return parseAndHandleMessage(message, state: &state)
-    }
-
-    private func parseAndHandleMessage(_ message: TransportMessage, state: inout State) -> Effect<Action> {
-        // updateSchedule 메시지 처리
-        if let envelope: Envelope<UpdateSchedulePayload> = try? message.decode() {
-            if envelope.type == .updateSchedule {
-                let payload = envelope.payload
-                return .send(.arming(.scheduleReceived(
-                    schedule: payload.schedule,
-                    effectiveDate: payload.effectiveDate
-                )))
-            }
-        }
-
-        // cancelSchedule 메시지 처리
-        if let envelope: Envelope<CancelSchedulePayload> = try? message.decode() {
-            if envelope.type == .cancelSchedule {
-                return .send(.arming(.scheduleCancelled))
-            }
-        }
-
-        // ping 메시지 처리 (무시)
-        if let _: Envelope<PingPayload> = try? message.decode() {
-            return .none
+        if let envelope: Envelope<UpdateSchedulePayload> = try? message.decode(),
+           envelope.type == .updateSchedule {
+            let payload = envelope.payload
+            return .send(.arming(.scheduleReceived(
+                schedule: payload.schedule,
+                effectiveDate: payload.effectiveDate
+            )))
+        } else if let envelope: Envelope<CancelSchedulePayload> = try? message.decode(),
+                  envelope.type == .cancelSchedule {
+            return .send(.arming(.scheduleCancelled))
         }
 
         return .none

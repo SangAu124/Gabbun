@@ -69,7 +69,6 @@ public struct WatchMonitoringFeature {
         case algorithmTick(Date)
 
         // 알고리즘 결과
-        case scoreComputed(WakeabilityScore, Date)
         case triggerDetected(TriggerEvent)
 
         // iOS 전송 완료
@@ -81,12 +80,16 @@ public struct WatchMonitoringFeature {
     @Dependency(\.motionClient) var motionClient
     @Dependency(\.wcSessionClient) var wcSessionClient
     @Dependency(\.continuousClock) var clock
+    @Dependency(\.date) var date
 
     private enum CancelID {
         case algorithmTimer
         case heartRateStream
         case motionStream
     }
+
+    // 점수 계산기는 무상태 — Feature 레벨 상수로 유지 (매 Tick 재생성 불필요)
+    private let algorithm = WakeabilityAlgorithm()
 
     // 샘플 버퍼 유지 시간 (알고리즘 윈도우보다 넉넉하게)
     private static let bufferWindowSeconds: TimeInterval = 150.0
@@ -109,9 +112,9 @@ public struct WatchMonitoringFeature {
 
                 return .merge(
                     // 30초 알고리즘 타이머
-                    .run { send in
+                    .run { [date] send in
                         for await _ in clock.timer(interval: .seconds(30)) {
-                            await send(.algorithmTick(Date()))
+                            await send(.algorithmTick(date.now))
                         }
                     }
                     .cancellable(id: CancelID.algorithmTimer),
@@ -119,7 +122,7 @@ public struct WatchMonitoringFeature {
                     // 심박 스트리밍
                     .run { [heartRateClient] send in
                         try await heartRateClient.startWorkoutSession()
-                        for await sample in heartRateClient.heartRateSamples() {
+                        for await sample in await heartRateClient.heartRateSamples() {
                             await send(.heartRateSampleReceived(sample))
                         }
                     }
@@ -128,7 +131,7 @@ public struct WatchMonitoringFeature {
                     // 가속도 스트리밍
                     .run { [motionClient] send in
                         try await motionClient.startUpdates()
-                        for await sample in motionClient.motionSamples() {
+                        for await sample in await motionClient.motionSamples() {
                             await send(.motionSampleReceived(sample))
                         }
                     }
@@ -152,20 +155,14 @@ public struct WatchMonitoringFeature {
                 state.now = now
                 return .none
 
-            // MARK: - 실시간 센서 샘플 누적
+            // MARK: - 실시간 센서 샘플 누적 (append only — pruning은 algorithmTick에서 일괄 처리)
 
             case let .heartRateSampleReceived(sample):
                 state.heartRateSamples.append(sample)
-                // 오래된 샘플 제거 (수신 샘플 기준으로 bufferWindow 이전 항목)
-                let hrCutoff = sample.timestamp.addingTimeInterval(-Self.bufferWindowSeconds)
-                state.heartRateSamples = state.heartRateSamples.filter { $0.timestamp >= hrCutoff }
                 return .none
 
             case let .motionSampleReceived(sample):
                 state.motionSamples.append(sample)
-                // 오래된 샘플 제거
-                let motionCutoff = sample.timestamp.addingTimeInterval(-Self.bufferWindowSeconds)
-                state.motionSamples = state.motionSamples.filter { $0.timestamp >= motionCutoff }
                 return .none
 
             // MARK: - 알고리즘 틱 (30초)
@@ -178,13 +175,12 @@ public struct WatchMonitoringFeature {
 
                 state.tickCount += 1
 
-                // 민감도에 따른 임계값 결정
-                let threshold = sensitivityThreshold(state.sensitivity)
-                let algorithm = WakeabilityAlgorithm(
-                    triggerDecider: TriggerDecider(threshold: threshold)
-                )
+                // 오래된 샘플 일괄 제거 (30초마다 한 번 — 25Hz * 30s = 최대 750개 누적 후 정리)
+                let cutoff = now.addingTimeInterval(-Self.bufferWindowSeconds)
+                state.motionSamples = state.motionSamples.filter { $0.timestamp >= cutoff }
+                state.heartRateSamples = state.heartRateSamples.filter { $0.timestamp >= cutoff }
 
-                // 점수 계산 (누적된 실제 센서 샘플 사용)
+                // 점수 계산 (algorithm은 Feature 프로퍼티 — 재생성 없음)
                 let score = algorithm.computeScore(
                     motionSamples: state.motionSamples,
                     hrSamples: state.heartRateSamples,
@@ -206,20 +202,32 @@ public struct WatchMonitoringFeature {
 
                 state.currentScore = score
 
-                // 트리거 판단
-                if let triggerEvent = algorithm.evaluateTrigger(
-                    recentScores: state.recentScores,
-                    lastTriggerTime: state.lastTriggerTime,
-                    currentTime: now,
-                    wakeTime: targetWakeTime
-                ) {
-                    return .send(.triggerDetected(triggerEvent))
+                // 트리거 판단 — sensitivity threshold를 TriggerDecider에 직접 전달
+                let decider = TriggerDecider(threshold: state.sensitivity.triggerThreshold)
+
+                if decider.shouldTriggerForced(currentTime: now, wakeTime: targetWakeTime) {
+                    let latest = state.recentScores.last
+                    return .send(.triggerDetected(TriggerEvent(
+                        reason: .forced,
+                        timestamp: now,
+                        score: latest?.score ?? 0.0,
+                        components: latest?.components ?? WakeabilityScore.Components(motionScore: 0.0, heartRateScore: 0.0)
+                    )))
                 }
 
-                return .none
+                if decider.shouldTriggerSmart(
+                    recentScores: state.recentScores,
+                    lastTriggerTime: state.lastTriggerTime,
+                    currentTime: now
+                ), let latest = state.recentScores.last {
+                    return .send(.triggerDetected(TriggerEvent(
+                        reason: .smart,
+                        timestamp: now,
+                        score: latest.score,
+                        components: latest.components
+                    )))
+                }
 
-            case let .scoreComputed(score, _):
-                state.currentScore = score
                 return .none
 
             case let .triggerDetected(event):
@@ -228,15 +236,7 @@ public struct WatchMonitoringFeature {
                 state.monitoringState = .triggered
 
                 guard let targetWakeTime = state.targetWakeTime else {
-                    return .merge(
-                        .cancel(id: CancelID.algorithmTimer),
-                        .cancel(id: CancelID.heartRateStream),
-                        .cancel(id: CancelID.motionStream),
-                        .run { [motionClient, heartRateClient] _ in
-                            await motionClient.stopUpdates()
-                            try? await heartRateClient.stopWorkoutSession()
-                        }
-                    )
+                    return stopSensorsEffect()
                 }
 
                 let payload = AlarmFiredEventPayload(
@@ -249,13 +249,7 @@ public struct WatchMonitoringFeature {
                 )
 
                 return .merge(
-                    .cancel(id: CancelID.algorithmTimer),
-                    .cancel(id: CancelID.heartRateStream),
-                    .cancel(id: CancelID.motionStream),
-                    .run { [motionClient, heartRateClient] _ in
-                        await motionClient.stopUpdates()
-                        try? await heartRateClient.stopWorkoutSession()
-                    },
+                    stopSensorsEffect(),
                     .run { send in
                         await send(.alarmFiredSent(Result {
                             let envelope = Envelope(type: .alarmFired, payload: payload)
@@ -269,19 +263,38 @@ public struct WatchMonitoringFeature {
                 return .none
 
             case let .alarmFiredSent(.failure(error)):
-                print("[MonitoringFeature] alarmFired 전송 실패: \(error.localizedDescription)")
-                return .none
+                return .run { _ in
+                    print("[MonitoringFeature] alarmFired 전송 실패: \(error.localizedDescription)")
+                }
             }
         }
     }
 }
 
+// MARK: - Private Helpers
+
+private extension WatchMonitoringFeature {
+    func stopSensorsEffect() -> Effect<Action> {
+        .merge(
+            .cancel(id: CancelID.algorithmTimer),
+            .cancel(id: CancelID.heartRateStream),
+            .cancel(id: CancelID.motionStream),
+            .run { [motionClient, heartRateClient] _ in
+                await motionClient.stopUpdates()
+                try? await heartRateClient.stopWorkoutSession()
+            }
+        )
+    }
+}
+
 // MARK: - Sensitivity → Threshold
 
-private func sensitivityThreshold(_ sensitivity: AlarmSchedule.Sensitivity) -> Double {
-    switch sensitivity {
-    case .conservative: return 0.80
-    case .balanced:     return 0.72
-    case .sensitive:    return 0.60
+private extension AlarmSchedule.Sensitivity {
+    var triggerThreshold: Double {
+        switch self {
+        case .conservative: return 0.80
+        case .balanced:     return 0.72
+        case .sensitive:    return 0.60
+        }
     }
 }

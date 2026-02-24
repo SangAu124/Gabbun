@@ -20,9 +20,6 @@ public struct WatchMonitoringView: View {
 
                 // 점수 표시
                 scoreDisplay
-
-                // 모드 선택 (디버그용)
-                modeSelector
             }
             .padding()
         }
@@ -161,43 +158,6 @@ public struct WatchMonitoringView: View {
                 }
             }
         }
-    }
-
-    // MARK: - Mode Selector (Debug)
-    private var modeSelector: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Simulation Mode")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-
-            HStack(spacing: 8) {
-                modeButton(.deepSleep, label: "Deep", icon: "moon.fill")
-                modeButton(.lightSleep, label: "Light", icon: "moon")
-                modeButton(.awakening, label: "Wake", icon: "sunrise.fill")
-            }
-        }
-    }
-
-    private func modeButton(_ mode: SensorSimulationMode, label: String, icon: String) -> some View {
-        Button {
-            store.send(.setSimulationMode(mode))
-        } label: {
-            VStack(spacing: 2) {
-                Image(systemName: icon)
-                    .font(.caption)
-                Text(label)
-                    .font(.caption2)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .background(
-                store.simulationMode == mode
-                    ? Color.blue.opacity(0.3)
-                    : Color.gray.opacity(0.2)
-            )
-            .cornerRadius(8)
-        }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Helpers
