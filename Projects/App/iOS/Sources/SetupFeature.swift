@@ -132,9 +132,23 @@ public struct SetupFeature {
                     enabled: state.enabled
                 )
 
+                // 기상 시각이 오늘 이미 지났으면 내일 날짜를 effectiveDate로 사용
+                let calendar = Calendar.current
+                var todayWakeComponents = calendar.dateComponents([.year, .month, .day], from: now)
+                todayWakeComponents.hour = state.wakeTimeHour
+                todayWakeComponents.minute = state.wakeTimeMinute
+                todayWakeComponents.second = 0
+
+                let effectiveDateBase: Date
+                if let todayWakeTime = calendar.date(from: todayWakeComponents), todayWakeTime <= now {
+                    effectiveDateBase = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+                } else {
+                    effectiveDateBase = now
+                }
+
                 let dateFormatter = DateFormatter()
                 dateFormatter.dateFormat = "yyyy-MM-dd"
-                let effectiveDate = dateFormatter.string(from: now)
+                let effectiveDate = dateFormatter.string(from: effectiveDateBase)
 
                 let payload = UpdateSchedulePayload(
                     schedule: schedule,
@@ -161,10 +175,11 @@ public struct SetupFeature {
 
                     // 폴백 알림 스케줄 (enabled 상태이고 권한 있을 때)
                     if isEnabled && permissionGranted {
-                        var components = Calendar.current.dateComponents([.year, .month, .day], from: now)
+                        // effectiveDateBase 기준으로 날짜 추출 (내일일 수 있음)
+                        var components = calendar.dateComponents([.year, .month, .day], from: effectiveDateBase)
                         components.hour = wakeHour
                         components.minute = wakeMinute
-                        if let wakeTime = Calendar.current.date(from: components) {
+                        if let wakeTime = calendar.date(from: components) {
                             await notificationClient.scheduleWakeUpFallback(wakeTime)
                         }
                     } else if !isEnabled {
