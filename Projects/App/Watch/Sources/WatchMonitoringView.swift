@@ -247,9 +247,11 @@ public struct WatchMonitoringView: View {
     }
 
     private func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss"
-        formatter.timeZone = TimeZone.current
-        return formatter.string(from: date)
+        // Calendar.current로 DateComponents를 추출 — 항상 현재 timezone 반영, thread-safe
+        let cal = Calendar.current
+        let h = cal.component(.hour, from: date)
+        let m = cal.component(.minute, from: date)
+        let s = cal.component(.second, from: date)
+        return String(format: "%02d:%02d:%02d", h, m, s)
     }
 }

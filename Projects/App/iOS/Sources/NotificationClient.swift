@@ -46,7 +46,11 @@ extension NotificationClient: DependencyKey {
                 trigger: trigger
             )
 
-            try? await center.add(request)
+            do {
+                try await center.add(request)
+            } catch {
+                print("[NotificationClient] 폴백 알림 스케줄 실패: \(error.localizedDescription)")
+            }
         },
         cancelWakeUpFallback: {
             let center = UNUserNotificationCenter.current()

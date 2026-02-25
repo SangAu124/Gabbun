@@ -140,11 +140,20 @@ public struct SetupView: View {
         }
     }
 
+    // DateFormatter를 매 렌더링마다 생성하지 않도록 static 캐싱
+    private static let syncDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .short
+        f.timeStyle = .short
+        f.locale = Locale.current
+        return f
+    }()
+
     private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        // locale은 DateFormatter 생성 시 캐싱되므로 timezone만 갱신
+        let f = Self.syncDateFormatter
+        f.timeZone = TimeZone.current
+        return f.string(from: date)
     }
 }
 

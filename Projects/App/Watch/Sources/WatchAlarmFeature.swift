@@ -193,11 +193,13 @@ public struct WatchAlarmFeature {
         guard let triggerEvent = state.triggerEvent,
               let windowStart = state.windowStartTime,
               let targetWake = state.targetWakeTime else {
-            // Fallback: 최소한의 정보로 생성
+            // Fallback: 세션 필수 데이터가 없는 비정상 경로 — 실제 발화 시각(now)으로 기록
+            let fallbackTime = state.now
+            print("[AlarmFeature] buildSessionSummary: 세션 메타데이터 부재 — fallback 사용 (triggerEvent=\(state.triggerEvent != nil), windowStart=\(state.windowStartTime != nil), targetWake=\(state.targetWakeTime != nil))")
             return WakeSessionSummary(
-                windowStartAt: Date(),
-                windowEndAt: Date(),
-                firedAt: Date(),
+                windowStartAt: fallbackTime,
+                windowEndAt: fallbackTime,
+                firedAt: fallbackTime,
                 reason: .forced,
                 scoreAtFire: 0
             )

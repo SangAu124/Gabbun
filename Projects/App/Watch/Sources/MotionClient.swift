@@ -56,7 +56,12 @@ private actor MotionActor {
 
         motionManager.accelerometerUpdateInterval = Self.updateInterval
         motionManager.startAccelerometerUpdates(to: queue) { [weak self] data, error in
-            guard let self, let data else { return }
+            guard let self else { return }
+            if let error {
+                print("[MotionActor] 가속도계 업데이트 오류: \(error.localizedDescription)")
+                return
+            }
+            guard let data else { return }
             let magnitude = sqrt(
                 data.acceleration.x * data.acceleration.x +
                 data.acceleration.y * data.acceleration.y +

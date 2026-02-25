@@ -151,6 +151,9 @@ private actor HeartRateActor {
 
         anchoredQuery.updateHandler = { [weak self] _, samples, _, _, error in
             guard let self else { return }
+            if let error {
+                print("[HeartRateActor] 심박 쿼리 업데이트 오류: \(error.localizedDescription)")
+            }
             if let samples = samples as? [HKQuantitySample] {
                 Task { await self.processSamples(samples) }
             }
@@ -160,7 +163,11 @@ private actor HeartRateActor {
         healthStore.execute(anchoredQuery)
 
         // 백그라운드 딜리버리 활성화
-        healthStore.enableBackgroundDelivery(for: heartRateType, frequency: .immediate) { _, _ in }
+        healthStore.enableBackgroundDelivery(for: heartRateType, frequency: .immediate) { success, error in
+            if let error {
+                print("[HeartRateActor] 백그라운드 딜리버리 활성화 실패: \(error.localizedDescription)")
+            }
+        }
     }
 
     private func processSamples(_ samples: [HKQuantitySample]) {

@@ -139,8 +139,13 @@ public struct WatchAppFeature {
             // MARK: - Monitoring Actions
             case let .monitoring(.triggerDetected(event)):
                 // 알람 트리거 → arming 상태 업데이트 + 알람 화면 활성화
-                let targetWakeTime = state.monitoring.targetWakeTime ?? Date()
-                let windowStartTime = state.monitoring.windowStartTime ?? Date()
+                // ?? Date() 폴백은 잘못된 세션 데이터를 리포트에 저장하므로 guard로 명시적 처리
+                guard let targetWakeTime = state.monitoring.targetWakeTime,
+                      let windowStartTime = state.monitoring.windowStartTime else {
+                    return .run { _ in
+                        print("[WatchAppFeature] triggerDetected: targetWakeTime 또는 windowStartTime 부재 — 알람 발화 스킵")
+                    }
+                }
                 let recentScores = state.monitoring.recentScores
                 return .merge(
                     .send(.arming(.setTriggered)),
@@ -185,8 +190,10 @@ public struct WatchAppFeature {
         } else if let envelope: Envelope<CancelSchedulePayload> = try? message.decode(),
                   envelope.type == .cancelSchedule {
             return .send(.arming(.scheduleCancelled))
+        } else {
+            return .run { _ in
+                print("[WatchAppFeature] 처리 불가 메시지 수신 — 향후 메시지 타입 추가 시 핸들러 등록 필요")
+            }
         }
-
-        return .none
     }
 }

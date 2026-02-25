@@ -194,9 +194,10 @@ public struct WatchMonitoringFeature {
                 state.tickCount += 1
 
                 // 오래된 샘플 일괄 제거 (30초마다 한 번 — 25Hz * 30s = 최대 750개 누적 후 정리)
+                // removeAll(where:): in-place 제거로 filter보다 메모리 효율적
                 let cutoff = now.addingTimeInterval(-Self.bufferWindowSeconds)
-                state.motionSamples = state.motionSamples.filter { $0.timestamp >= cutoff }
-                state.heartRateSamples = state.heartRateSamples.filter { $0.timestamp >= cutoff }
+                state.motionSamples.removeAll(where: { $0.timestamp < cutoff })
+                state.heartRateSamples.removeAll(where: { $0.timestamp < cutoff })
 
                 // 점수 계산 (algorithm은 Feature 프로퍼티 — 재생성 없음)
                 let score = algorithm.computeScore(

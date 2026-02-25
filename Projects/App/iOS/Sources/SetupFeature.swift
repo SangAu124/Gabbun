@@ -151,9 +151,14 @@ public struct SetupFeature {
                     effectiveDateBase = wakeTimeToday
                 }
 
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "yyyy-MM-dd"
-                let effectiveDate = dateFormatter.string(from: effectiveDateBase)
+                // DateFormatter 대신 Calendar.dateComponents를 사용하여 로케일/타임존 영향 배제
+                let dateComponents = calendar.dateComponents([.year, .month, .day], from: effectiveDateBase)
+                let effectiveDate = String(
+                    format: "%04d-%02d-%02d",
+                    dateComponents.year ?? 0,
+                    dateComponents.month ?? 0,
+                    dateComponents.day ?? 0
+                )
 
                 let payload = UpdateSchedulePayload(
                     schedule: schedule,
