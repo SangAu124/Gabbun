@@ -104,17 +104,17 @@ public struct SetupView: View {
                                 .frame(maxWidth: .infinity)
                         }
                     }
-                    .disabled(!store.isReachable || store.isSyncing)
+                    .disabled(!store.isActivated || store.isSyncing)
                 } footer: {
                     VStack(alignment: .leading, spacing: 4) {
-                        // 연결 상태
+                        // 연결 상태 (3단계: 비연결 / 페어링됨 / 활성)
                         HStack(spacing: 4) {
                             Circle()
-                                .fill(store.isReachable ? Color.green : Color.red)
+                                .fill(store.isReachable ? Color.green : store.isActivated ? Color.orange : Color.red)
                                 .frame(width: 8, height: 8)
-                            Text(store.isReachable ? "Watch 연결됨" : "Watch 연결 안 됨")
+                            Text(store.isReachable ? "Watch 활성" : store.isActivated ? "Watch 연결됨" : "Watch 연결 안 됨")
                                 .font(.caption)
-                                .foregroundColor(store.isReachable ? .green : .red)
+                                .foregroundColor(store.isReachable ? .green : store.isActivated ? .orange : .red)
                         }
 
                         // 마지막 동기화 시간
@@ -140,11 +140,20 @@ public struct SetupView: View {
         }
     }
 
+    // DateFormatter를 매 렌더링마다 생성하지 않도록 static 캐싱
+    private static let syncDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .short
+        f.timeStyle = .short
+        f.locale = Locale.current
+        return f
+    }()
+
     private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        // locale은 DateFormatter 생성 시 캐싱되므로 timezone만 갱신
+        let f = Self.syncDateFormatter
+        f.timeZone = TimeZone.current
+        return f.string(from: date)
     }
 }
 

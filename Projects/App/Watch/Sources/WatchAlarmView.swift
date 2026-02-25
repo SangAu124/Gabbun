@@ -166,9 +166,11 @@ struct WatchAlarmView: View {
     }
 
     private func formattedTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm"
-        return formatter.string(from: date)
+        // Calendar.current로 DateComponents 추출 — 항상 현재 timezone 반영, thread-safe
+        let cal = Calendar.current
+        let h = cal.component(.hour, from: date)
+        let m = cal.component(.minute, from: date)
+        return String(format: "%02d:%02d", h, m)
     }
 }
 

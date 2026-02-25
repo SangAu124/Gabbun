@@ -39,7 +39,11 @@ public struct ReportFeature {
                        let envelope: Envelope<SessionSummaryPayload> = try? context.decode(),
                        envelope.type == .sessionSummary {
                         let incoming = envelope.payload.summary
-                        let merged = saved.contains(incoming) ? saved : [incoming] + saved
+                        // sessionReceived와 동일 기준(firedAt + reason)으로 중복 검사
+                        let isDuplicate = saved.contains {
+                            $0.firedAt == incoming.firedAt && $0.reason == incoming.reason
+                        }
+                        let merged = isDuplicate ? saved : [incoming] + saved
                         await send(.sessionsLoaded(merged))
                     } else {
                         await send(.sessionsLoaded(saved))
@@ -51,11 +55,19 @@ public struct ReportFeature {
                 return .none
 
             case let .sessionReceived(summary):
-                guard !state.sessions.contains(summary) else { return .none }
+                // firedAt + reason 기준으로 중복 검사 (Equatable 전체 비교보다 명시적)
+                let isDuplicate = state.sessions.contains {
+                    $0.firedAt == summary.firedAt && $0.reason == summary.reason
+                }
+                guard !isDuplicate else { return .none }
                 state.sessions.insert(summary, at: 0)
                 let sessions = state.sessions
                 return .run { _ in
-                    try? sessionStoreClient.save(sessions)
+                    do {
+                        try sessionStoreClient.save(sessions)
+                    } catch {
+                        print("[ReportFeature] 세션 저장 실패: \(error.localizedDescription)")
+                    }
                 }
             }
         }

@@ -52,15 +52,29 @@ public struct WatchArmingFeature {
         public init() {}
 
         // Helper: effectiveDate + wakeTimeLocal → Date
-        private static let wakeTimeFormatter: DateFormatter = {
-            let f = DateFormatter()
-            f.dateFormat = "yyyy-MM-dd HH:mm"
-            f.timeZone = TimeZone.current
-            return f
-        }()
-
+        // DateFormatter를 static으로 캐싱하면 초기화 시점의 timezone이 고착되므로,
+        // Calendar.current(항상 최신 timezone 반영)를 이용한 DateComponents 방식으로 파싱
         private static func parseTargetWakeTime(effectiveDate: String, wakeTimeLocal: String) -> Date? {
-            wakeTimeFormatter.date(from: "\(effectiveDate) \(wakeTimeLocal)")
+            // effectiveDate: "YYYY-MM-DD", wakeTimeLocal: "HH:mm"
+            let dateParts = effectiveDate.split(separator: "-")
+            let timeParts = wakeTimeLocal.split(separator: ":")
+            guard dateParts.count == 3,
+                  let year  = Int(dateParts[0]),
+                  let month = Int(dateParts[1]),
+                  let day   = Int(dateParts[2]),
+                  timeParts.count == 2,
+                  let hour   = Int(timeParts[0]),
+                  let minute = Int(timeParts[1]) else { return nil }
+
+            var components = DateComponents()
+            components.year   = year
+            components.month  = month
+            components.day    = day
+            components.hour   = hour
+            components.minute = minute
+            components.second = 0
+            // Calendar.current는 항상 현재 기기 timezone을 반영 — timezone 변경에 안전
+            return Calendar.current.date(from: components)
         }
     }
 

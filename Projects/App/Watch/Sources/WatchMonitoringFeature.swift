@@ -37,6 +37,12 @@ public struct WatchMonitoringFeature {
         // 타이머
         public var tickCount: Int = 0
 
+        // HealthKit 권한 거부 여부
+        public var healthKitDenied: Bool = false
+
+        // HealthKit 재시도 횟수 (최대 3회 제한)
+        public var healthKitRetryCount: Int = 0
+
         public init() {}
 
         // 경과 시간 (tick 기준)
@@ -73,6 +79,13 @@ public struct WatchMonitoringFeature {
 
         // iOS 전송 완료
         case alarmFiredSent(Result<Void, Error>)
+
+        // HealthKit 세션 오류
+        case heartRateSessionFailed(any Error)
+
+        // HealthKit 권한 재시도 / 모션 전용으로 계속
+        case retryHealthKitAuthorization
+        case dismissHealthKitError
     }
 
     // MARK: - Dependencies
@@ -109,6 +122,7 @@ public struct WatchMonitoringFeature {
                 state.triggerEvent = nil
                 state.motionSamples = []
                 state.heartRateSamples = []
+                state.healthKitRetryCount = 0
 
                 return .merge(
                     // 30초 알고리즘 타이머
@@ -119,11 +133,15 @@ public struct WatchMonitoringFeature {
                     }
                     .cancellable(id: CancelID.algorithmTimer),
 
-                    // 심박 스트리밍
+                    // 심박 스트리밍 (권한 거부 시 heartRateSessionFailed로 전파)
                     .run { [heartRateClient] send in
-                        try await heartRateClient.startWorkoutSession()
-                        for await sample in await heartRateClient.heartRateSamples() {
-                            await send(.heartRateSampleReceived(sample))
+                        do {
+                            try await heartRateClient.startWorkoutSession()
+                            for await sample in await heartRateClient.heartRateSamples() {
+                                await send(.heartRateSampleReceived(sample))
+                            }
+                        } catch {
+                            await send(.heartRateSessionFailed(error))
                         }
                     }
                     .cancellable(id: CancelID.heartRateStream),
@@ -176,9 +194,10 @@ public struct WatchMonitoringFeature {
                 state.tickCount += 1
 
                 // 오래된 샘플 일괄 제거 (30초마다 한 번 — 25Hz * 30s = 최대 750개 누적 후 정리)
+                // removeAll(where:): in-place 제거로 filter보다 메모리 효율적
                 let cutoff = now.addingTimeInterval(-Self.bufferWindowSeconds)
-                state.motionSamples = state.motionSamples.filter { $0.timestamp >= cutoff }
-                state.heartRateSamples = state.heartRateSamples.filter { $0.timestamp >= cutoff }
+                state.motionSamples.removeAll(where: { $0.timestamp < cutoff })
+                state.heartRateSamples.removeAll(where: { $0.timestamp < cutoff })
 
                 // 점수 계산 (algorithm은 Feature 프로퍼티 — 재생성 없음)
                 let score = algorithm.computeScore(
@@ -219,18 +238,23 @@ public struct WatchMonitoringFeature {
                     recentScores: state.recentScores,
                     lastTriggerTime: state.lastTriggerTime,
                     currentTime: now
-                ), let latest = state.recentScores.last {
+                ) {
+                    // recentScores가 비어있으면 shouldTriggerSmart가 true여도 트리거 정보가 없음
+                    // → forced와 동일하게 0.0 점수로 발화 (알람 미발화보다 안전)
+                    let latest = state.recentScores.last
                     return .send(.triggerDetected(TriggerEvent(
                         reason: .smart,
                         timestamp: now,
-                        score: latest.score,
-                        components: latest.components
+                        score: latest?.score ?? 0.0,
+                        components: latest?.components ?? WakeabilityScore.Components(motionScore: 0.0, heartRateScore: 0.0)
                     )))
                 }
 
                 return .none
 
             case let .triggerDetected(event):
+                // stopMonitoring과의 경합: 이미 모니터링이 종료된 경우 무시
+                guard state.monitoringState == .monitoring else { return .none }
                 state.triggerEvent = event
                 state.lastTriggerTime = event.timestamp
                 state.monitoringState = .triggered
@@ -266,6 +290,41 @@ public struct WatchMonitoringFeature {
                 return .run { _ in
                     print("[MonitoringFeature] alarmFired 전송 실패: \(error.localizedDescription)")
                 }
+
+            case let .heartRateSessionFailed(error):
+                state.healthKitDenied = true
+                return .run { _ in
+                    print("[MonitoringFeature] HealthKit 세션 시작 실패: \(error.localizedDescription)")
+                }
+
+            case .retryHealthKitAuthorization:
+                // 권한이 영구 거부된 경우 반복 재시도는 무의미 — 최대 3회 제한
+                guard state.healthKitRetryCount < 3 else {
+                    // 한도 초과 시 모션 전용으로 폴백 (dismissHealthKitError와 동일)
+                    state.healthKitDenied = false
+                    return .none
+                }
+                state.healthKitRetryCount += 1
+                state.healthKitDenied = false
+                return .merge(
+                    .cancel(id: CancelID.heartRateStream),
+                    .run { [heartRateClient] send in
+                        do {
+                            try await heartRateClient.startWorkoutSession()
+                            for await sample in await heartRateClient.heartRateSamples() {
+                                await send(.heartRateSampleReceived(sample))
+                            }
+                        } catch {
+                            await send(.heartRateSessionFailed(error))
+                        }
+                    }
+                    .cancellable(id: CancelID.heartRateStream)
+                )
+
+            case .dismissHealthKitError:
+                // 모션 전용으로 계속 — 이미 모션 스트림은 동작 중
+                state.healthKitDenied = false
+                return .none
             }
         }
     }
@@ -289,7 +348,7 @@ private extension WatchMonitoringFeature {
 
 // MARK: - Sensitivity → Threshold
 
-private extension AlarmSchedule.Sensitivity {
+extension AlarmSchedule.Sensitivity {
     var triggerThreshold: Double {
         switch self {
         case .conservative: return 0.80

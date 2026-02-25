@@ -54,7 +54,8 @@ let project = Project(
                     "CFBundleVersion": "1",
                     "WKApplication": true,
                     "WKCompanionAppBundleIdentifier": "com.sangau.gabbun.app",
-                    "NSHealthShareUsageDescription": "수면 중 심박수를 모니터링하여 최적의 기상 시점을 감지합니다."
+                    "NSHealthShareUsageDescription": "수면 중 심박수를 모니터링하여 최적의 기상 시점을 감지합니다.",
+                    "WKBackgroundModes": ["workout-processing"]
                 ]
             ),
             entitlements: .file(path: .relativeToManifest("../Watch/Resources/GabbunWatchApp.entitlements")),

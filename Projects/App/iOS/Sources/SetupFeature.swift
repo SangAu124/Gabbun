@@ -16,6 +16,7 @@ public struct SetupFeature {
         public var enabled: Bool = true
 
         public var isReachable: Bool = false
+        public var isActivated: Bool = false
         public var lastSyncAt: Date?
         public var errorMessage: String?
         public var isSyncing: Bool = false
@@ -49,7 +50,7 @@ public struct SetupFeature {
         case syncButtonTapped
         case syncResponse(Result<Void, Error>)
         case updateConnectionStatus
-        case connectionStatusUpdated(isReachable: Bool)
+        case connectionStatusUpdated(isReachable: Bool, isActivated: Bool)
 
         // 폴백 알림
         case notificationPermissionResponse(Bool)
@@ -132,9 +133,32 @@ public struct SetupFeature {
                     enabled: state.enabled
                 )
 
-                let dateFormatter = DateFormatter()
-                dateFormatter.dateFormat = "yyyy-MM-dd"
-                let effectiveDate = dateFormatter.string(from: now)
+                // 기상 시각이 오늘 이미 지났으면 내일 기상 시각을, 아직 안 지났으면 오늘 기상 시각을 사용
+                let calendar = Calendar.current
+                let wakeTimeToday = calendar.date(
+                    bySettingHour: state.wakeTimeHour,
+                    minute: state.wakeTimeMinute,
+                    second: 0,
+                    of: now
+                ) ?? now
+
+                let effectiveDateBase: Date
+                if wakeTimeToday <= now {
+                    // 오늘 기상 시각이 지났으면 내일 동일 시각
+                    effectiveDateBase = calendar.date(byAdding: .day, value: 1, to: wakeTimeToday) ?? wakeTimeToday
+                } else {
+                    // 아직 안 지났으면 오늘 기상 시각
+                    effectiveDateBase = wakeTimeToday
+                }
+
+                // DateFormatter 대신 Calendar.dateComponents를 사용하여 로케일/타임존 영향 배제
+                let dateComponents = calendar.dateComponents([.year, .month, .day], from: effectiveDateBase)
+                let effectiveDate = String(
+                    format: "%04d-%02d-%02d",
+                    dateComponents.year ?? 0,
+                    dateComponents.month ?? 0,
+                    dateComponents.day ?? 0
+                )
 
                 let payload = UpdateSchedulePayload(
                     schedule: schedule,
@@ -146,9 +170,6 @@ public struct SetupFeature {
                     payload: payload
                 )
 
-                // 기상 시각 계산 (폴백 알림용)
-                let wakeHour = state.wakeTimeHour
-                let wakeMinute = state.wakeTimeMinute
                 let isEnabled = state.enabled
                 let permissionGranted = state.notificationPermissionGranted
 
@@ -160,13 +181,9 @@ public struct SetupFeature {
                     }))
 
                     // 폴백 알림 스케줄 (enabled 상태이고 권한 있을 때)
+                    // effectiveDateBase는 이미 올바른 기상 시각(hour/minute 포함)이므로 그대로 사용
                     if isEnabled && permissionGranted {
-                        var components = Calendar.current.dateComponents([.year, .month, .day], from: now)
-                        components.hour = wakeHour
-                        components.minute = wakeMinute
-                        if let wakeTime = Calendar.current.date(from: components) {
-                            await notificationClient.scheduleWakeUpFallback(wakeTime)
-                        }
+                        await notificationClient.scheduleWakeUpFallback(effectiveDateBase)
                     } else if !isEnabled {
                         await notificationClient.cancelWakeUpFallback()
                     }
@@ -184,11 +201,13 @@ public struct SetupFeature {
                 return .none
 
             case .updateConnectionStatus:
+                let isReachable = wcSessionClient.isReachable()
                 let isActivated = wcSessionClient.isActivated()
-                return .send(.connectionStatusUpdated(isReachable: isActivated))
+                return .send(.connectionStatusUpdated(isReachable: isReachable, isActivated: isActivated))
 
-            case .connectionStatusUpdated(let isReachable):
+            case .connectionStatusUpdated(let isReachable, let isActivated):
                 state.isReachable = isReachable
+                state.isActivated = isActivated
                 return .none
 
             case .notificationPermissionResponse(let granted):

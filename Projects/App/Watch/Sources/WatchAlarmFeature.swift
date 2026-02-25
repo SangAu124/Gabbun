@@ -140,7 +140,8 @@ public struct WatchAlarmFeature {
 
             case .snoozeTapped:
                 state.snoozeCount += 1
-                let resumeAt = dateNow.addingTimeInterval(Double(Self.snoozeDurationSeconds))
+                // state.now를 기준으로 resumeAt 계산 → UI 표시 시각(snoozeRemainingSeconds)과 일치
+                let resumeAt = state.now.addingTimeInterval(Double(Self.snoozeDurationSeconds))
                 state.alarmState = .snoozed(resumeAt: resumeAt)
 
                 return .merge(
@@ -192,11 +193,13 @@ public struct WatchAlarmFeature {
         guard let triggerEvent = state.triggerEvent,
               let windowStart = state.windowStartTime,
               let targetWake = state.targetWakeTime else {
-            // Fallback: 최소한의 정보로 생성
+            // Fallback: 세션 필수 데이터가 없는 비정상 경로 — 실제 발화 시각(now)으로 기록
+            let fallbackTime = state.now
+            print("[AlarmFeature] buildSessionSummary: 세션 메타데이터 부재 — fallback 사용 (triggerEvent=\(state.triggerEvent != nil), windowStart=\(state.windowStartTime != nil), targetWake=\(state.targetWakeTime != nil))")
             return WakeSessionSummary(
-                windowStartAt: Date(),
-                windowEndAt: Date(),
-                firedAt: Date(),
+                windowStartAt: fallbackTime,
+                windowEndAt: fallbackTime,
+                firedAt: fallbackTime,
                 reason: .forced,
                 scoreAtFire: 0
             )
@@ -204,6 +207,10 @@ public struct WatchAlarmFeature {
 
         // Best score 찾기
         let bestScore = state.recentScores.max(by: { $0.score < $1.score })
+
+        // 배터리 소모 추정: 모니터링 윈도우 1분당 약 0.5% (워크아웃 세션 유지 비용)
+        let windowMinutes = targetWake.timeIntervalSince(windowStart) / 60.0
+        let batteryImpactEstimate = Int((windowMinutes * 0.5).rounded())
 
         return WakeSessionSummary(
             windowStartAt: windowStart,
@@ -213,7 +220,7 @@ public struct WatchAlarmFeature {
             scoreAtFire: triggerEvent.score,
             bestCandidateAt: bestScore?.timestamp,
             bestScore: bestScore?.score,
-            batteryImpactEstimate: nil
+            batteryImpactEstimate: batteryImpactEstimate
         )
     }
 

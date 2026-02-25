@@ -37,6 +37,15 @@ extension DependencyValues {
     }
 }
 
+// MARK: - HeartRateAuthorizationError
+
+public enum HeartRateAuthorizationError: LocalizedError, Sendable {
+    case denied
+    public var errorDescription: String? {
+        "HealthKit 심박수 접근 권한이 거부되었습니다. 설정 > 개인정보 보호 > 건강에서 권한을 허용해 주세요."
+    }
+}
+
 // MARK: - HeartRateActor (thread-safe implementation)
 
 private actor HeartRateActor {
@@ -46,15 +55,22 @@ private actor HeartRateActor {
     private var query: HKAnchoredObjectQuery?
     private var continuation: AsyncStream<HeartRateSample>.Continuation?
 
-    private static let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate)!
+    private static let heartRateType: HKQuantityType? = HKQuantityType.quantityType(forIdentifier: .heartRate)
     private static let heartRateUnit = HKUnit(from: "count/min")
 
     // MARK: - Authorization
 
     func requestAuthorization() async throws {
         guard HKHealthStore.isHealthDataAvailable() else { return }
-        let typesToRead: Set<HKObjectType> = [Self.heartRateType]
-        try await healthStore.requestAuthorization(toShare: [], read: typesToRead)
+        guard let heartRateType = Self.heartRateType else { return }
+        let typesToRead: Set<HKObjectType> = [heartRateType]
+        // 워크아웃 세션 유지를 위해 HKWorkoutType 쓰기 권한도 함께 요청
+        let typesToShare: Set<HKSampleType> = [HKObjectType.workoutType()]
+        try await healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead)
+        // 쓰기 권한은 authorizationStatus로 거부 여부 확인 가능 (읽기 권한은 privacy 이유로 불가)
+        if healthStore.authorizationStatus(for: HKObjectType.workoutType()) == .sharingDenied {
+            throw HeartRateAuthorizationError.denied
+        }
     }
 
     // MARK: - Workout Session
@@ -113,6 +129,8 @@ private actor HeartRateActor {
     // MARK: - Heart Rate Query
 
     private func startHeartRateQuery() {
+        guard let heartRateType = Self.heartRateType else { return }
+
         let predicate = HKQuery.predicateForSamples(
             withStart: Date(),
             end: nil,
@@ -120,7 +138,7 @@ private actor HeartRateActor {
         )
 
         let anchoredQuery = HKAnchoredObjectQuery(
-            type: Self.heartRateType,
+            type: heartRateType,
             predicate: predicate,
             anchor: nil,
             limit: HKObjectQueryNoLimit
@@ -133,6 +151,9 @@ private actor HeartRateActor {
 
         anchoredQuery.updateHandler = { [weak self] _, samples, _, _, error in
             guard let self else { return }
+            if let error {
+                print("[HeartRateActor] 심박 쿼리 업데이트 오류: \(error.localizedDescription)")
+            }
             if let samples = samples as? [HKQuantitySample] {
                 Task { await self.processSamples(samples) }
             }
@@ -142,7 +163,14 @@ private actor HeartRateActor {
         healthStore.execute(anchoredQuery)
 
         // 백그라운드 딜리버리 활성화
-        healthStore.enableBackgroundDelivery(for: Self.heartRateType, frequency: .immediate) { _, _ in }
+        healthStore.enableBackgroundDelivery(for: heartRateType, frequency: .immediate) { success, error in
+            if !success {
+                print("[HeartRateActor] 백그라운드 딜리버리 활성화 실패: success=false")
+            }
+            if let error {
+                print("[HeartRateActor] 백그라운드 딜리버리 활성화 오류: \(error.localizedDescription)")
+            }
+        }
     }
 
     private func processSamples(_ samples: [HKQuantitySample]) {
