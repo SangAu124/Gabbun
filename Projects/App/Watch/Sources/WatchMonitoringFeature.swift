@@ -37,6 +37,9 @@ public struct WatchMonitoringFeature {
         // 타이머
         public var tickCount: Int = 0
 
+        // HealthKit 권한 거부 여부
+        public var healthKitDenied: Bool = false
+
         public init() {}
 
         // 경과 시간 (tick 기준)
@@ -73,6 +76,9 @@ public struct WatchMonitoringFeature {
 
         // iOS 전송 완료
         case alarmFiredSent(Result<Void, Error>)
+
+        // HealthKit 세션 오류
+        case heartRateSessionFailed(any Error)
     }
 
     // MARK: - Dependencies
@@ -119,11 +125,15 @@ public struct WatchMonitoringFeature {
                     }
                     .cancellable(id: CancelID.algorithmTimer),
 
-                    // 심박 스트리밍
+                    // 심박 스트리밍 (권한 거부 시 heartRateSessionFailed로 전파)
                     .run { [heartRateClient] send in
-                        try await heartRateClient.startWorkoutSession()
-                        for await sample in await heartRateClient.heartRateSamples() {
-                            await send(.heartRateSampleReceived(sample))
+                        do {
+                            try await heartRateClient.startWorkoutSession()
+                            for await sample in await heartRateClient.heartRateSamples() {
+                                await send(.heartRateSampleReceived(sample))
+                            }
+                        } catch {
+                            await send(.heartRateSessionFailed(error))
                         }
                     }
                     .cancellable(id: CancelID.heartRateStream),
@@ -265,6 +275,12 @@ public struct WatchMonitoringFeature {
             case let .alarmFiredSent(.failure(error)):
                 return .run { _ in
                     print("[MonitoringFeature] alarmFired 전송 실패: \(error.localizedDescription)")
+                }
+
+            case let .heartRateSessionFailed(error):
+                state.healthKitDenied = true
+                return .run { _ in
+                    print("[MonitoringFeature] HealthKit 세션 시작 실패: \(error.localizedDescription)")
                 }
             }
         }

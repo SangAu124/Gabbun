@@ -104,17 +104,17 @@ public struct SetupView: View {
                                 .frame(maxWidth: .infinity)
                         }
                     }
-                    .disabled(!store.isReachable || store.isSyncing)
+                    .disabled(!store.isActivated || store.isSyncing)
                 } footer: {
                     VStack(alignment: .leading, spacing: 4) {
-                        // 연결 상태
+                        // 연결 상태 (3단계: 비연결 / 페어링됨 / 활성)
                         HStack(spacing: 4) {
                             Circle()
-                                .fill(store.isReachable ? Color.green : Color.red)
+                                .fill(store.isReachable ? Color.green : store.isActivated ? Color.orange : Color.red)
                                 .frame(width: 8, height: 8)
-                            Text(store.isReachable ? "Watch 연결됨" : "Watch 연결 안 됨")
+                            Text(store.isReachable ? "Watch 활성" : store.isActivated ? "Watch 연결됨" : "Watch 연결 안 됨")
                                 .font(.caption)
-                                .foregroundColor(store.isReachable ? .green : .red)
+                                .foregroundColor(store.isReachable ? .green : store.isActivated ? .orange : .red)
                         }
 
                         // 마지막 동기화 시간

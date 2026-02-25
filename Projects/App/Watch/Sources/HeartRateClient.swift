@@ -37,6 +37,15 @@ extension DependencyValues {
     }
 }
 
+// MARK: - HeartRateAuthorizationError
+
+public enum HeartRateAuthorizationError: LocalizedError, Sendable {
+    case denied
+    public var errorDescription: String? {
+        "HealthKit 심박수 접근 권한이 거부되었습니다. 설정 > 개인정보 보호 > 건강에서 권한을 허용해 주세요."
+    }
+}
+
 // MARK: - HeartRateActor (thread-safe implementation)
 
 private actor HeartRateActor {
@@ -54,7 +63,13 @@ private actor HeartRateActor {
     func requestAuthorization() async throws {
         guard HKHealthStore.isHealthDataAvailable() else { return }
         let typesToRead: Set<HKObjectType> = [Self.heartRateType]
-        try await healthStore.requestAuthorization(toShare: [], read: typesToRead)
+        // 워크아웃 세션 유지를 위해 HKWorkoutType 쓰기 권한도 함께 요청
+        let typesToShare: Set<HKSampleType> = [HKObjectType.workoutType()]
+        try await healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead)
+        // 쓰기 권한은 authorizationStatus로 거부 여부 확인 가능 (읽기 권한은 privacy 이유로 불가)
+        if healthStore.authorizationStatus(for: HKObjectType.workoutType()) == .sharingDenied {
+            throw HeartRateAuthorizationError.denied
+        }
     }
 
     // MARK: - Workout Session

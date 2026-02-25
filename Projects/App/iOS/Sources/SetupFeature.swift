@@ -16,6 +16,7 @@ public struct SetupFeature {
         public var enabled: Bool = true
 
         public var isReachable: Bool = false
+        public var isActivated: Bool = false
         public var lastSyncAt: Date?
         public var errorMessage: String?
         public var isSyncing: Bool = false
@@ -49,7 +50,7 @@ public struct SetupFeature {
         case syncButtonTapped
         case syncResponse(Result<Void, Error>)
         case updateConnectionStatus
-        case connectionStatusUpdated(isReachable: Bool)
+        case connectionStatusUpdated(isReachable: Bool, isActivated: Bool)
 
         // 폴백 알림
         case notificationPermissionResponse(Bool)
@@ -199,11 +200,13 @@ public struct SetupFeature {
                 return .none
 
             case .updateConnectionStatus:
+                let isReachable = wcSessionClient.isReachable()
                 let isActivated = wcSessionClient.isActivated()
-                return .send(.connectionStatusUpdated(isReachable: isActivated))
+                return .send(.connectionStatusUpdated(isReachable: isReachable, isActivated: isActivated))
 
-            case .connectionStatusUpdated(let isReachable):
+            case .connectionStatusUpdated(let isReachable, let isActivated):
                 state.isReachable = isReachable
+                state.isActivated = isActivated
                 return .none
 
             case .notificationPermissionResponse(let granted):

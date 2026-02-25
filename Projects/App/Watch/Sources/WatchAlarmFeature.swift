@@ -205,6 +205,10 @@ public struct WatchAlarmFeature {
         // Best score 찾기
         let bestScore = state.recentScores.max(by: { $0.score < $1.score })
 
+        // 배터리 소모 추정: 모니터링 윈도우 1분당 약 0.5% (워크아웃 세션 유지 비용)
+        let windowMinutes = targetWake.timeIntervalSince(windowStart) / 60.0
+        let batteryImpactEstimate = Int((windowMinutes * 0.5).rounded())
+
         return WakeSessionSummary(
             windowStartAt: windowStart,
             windowEndAt: targetWake,
@@ -213,7 +217,7 @@ public struct WatchAlarmFeature {
             scoreAtFire: triggerEvent.score,
             bestCandidateAt: bestScore?.timestamp,
             bestScore: bestScore?.score,
-            batteryImpactEstimate: nil
+            batteryImpactEstimate: batteryImpactEstimate
         )
     }
 
