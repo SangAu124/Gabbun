@@ -164,8 +164,11 @@ private actor HeartRateActor {
 
         // 백그라운드 딜리버리 활성화
         healthStore.enableBackgroundDelivery(for: heartRateType, frequency: .immediate) { success, error in
+            if !success {
+                print("[HeartRateActor] 백그라운드 딜리버리 활성화 실패: success=false")
+            }
             if let error {
-                print("[HeartRateActor] 백그라운드 딜리버리 활성화 실패: \(error.localizedDescription)")
+                print("[HeartRateActor] 백그라운드 딜리버리 활성화 오류: \(error.localizedDescription)")
             }
         }
     }

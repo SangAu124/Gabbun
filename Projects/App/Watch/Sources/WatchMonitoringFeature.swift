@@ -238,12 +238,15 @@ public struct WatchMonitoringFeature {
                     recentScores: state.recentScores,
                     lastTriggerTime: state.lastTriggerTime,
                     currentTime: now
-                ), let latest = state.recentScores.last {
+                ) {
+                    // recentScores가 비어있으면 shouldTriggerSmart가 true여도 트리거 정보가 없음
+                    // → forced와 동일하게 0.0 점수로 발화 (알람 미발화보다 안전)
+                    let latest = state.recentScores.last
                     return .send(.triggerDetected(TriggerEvent(
                         reason: .smart,
                         timestamp: now,
-                        score: latest.score,
-                        components: latest.components
+                        score: latest?.score ?? 0.0,
+                        components: latest?.components ?? WakeabilityScore.Components(motionScore: 0.0, heartRateScore: 0.0)
                     )))
                 }
 

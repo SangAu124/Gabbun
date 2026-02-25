@@ -139,14 +139,11 @@ public struct WatchAppFeature {
             // MARK: - Monitoring Actions
             case let .monitoring(.triggerDetected(event)):
                 // 알람 트리거 → arming 상태 업데이트 + 알람 화면 활성화
-                // ?? Date() 폴백은 잘못된 세션 데이터를 리포트에 저장하므로 guard로 명시적 처리
-                guard let targetWakeTime = state.monitoring.targetWakeTime,
-                      let windowStartTime = state.monitoring.windowStartTime else {
-                    return .run { _ in
-                        print("[WatchAppFeature] triggerDetected: targetWakeTime 또는 windowStartTime 부재 — 알람 발화 스킵")
-                    }
-                }
+                // 세션 메타데이터가 없는 비정상 상황에도 알람은 반드시 발화 (알람 누락이 데이터 오염보다 치명적)
+                let targetWakeTime = state.monitoring.targetWakeTime ?? state.now
+                let windowStartTime = state.monitoring.windowStartTime ?? state.now
                 let recentScores = state.monitoring.recentScores
+                let hasFallback = state.monitoring.targetWakeTime == nil || state.monitoring.windowStartTime == nil
                 return .merge(
                     .send(.arming(.setTriggered)),
                     .send(.alarm(.alarmTriggered(
@@ -154,7 +151,10 @@ public struct WatchAppFeature {
                         targetWakeTime: targetWakeTime,
                         windowStartTime: windowStartTime,
                         recentScores: recentScores
-                    )))
+                    ))),
+                    hasFallback ? .run { _ in
+                        print("[WatchAppFeature] triggerDetected: targetWakeTime/windowStartTime 부재 — now 폴백으로 알람 발화")
+                    } : .none
                 )
 
             case .monitoring:
