@@ -140,7 +140,8 @@ public struct WatchAlarmFeature {
 
             case .snoozeTapped:
                 state.snoozeCount += 1
-                let resumeAt = dateNow.addingTimeInterval(Double(Self.snoozeDurationSeconds))
+                // state.now를 기준으로 resumeAt 계산 → UI 표시 시각(snoozeRemainingSeconds)과 일치
+                let resumeAt = state.now.addingTimeInterval(Double(Self.snoozeDurationSeconds))
                 state.alarmState = .snoozed(resumeAt: resumeAt)
 
                 return .merge(

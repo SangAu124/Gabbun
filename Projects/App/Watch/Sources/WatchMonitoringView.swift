@@ -230,9 +230,10 @@ public struct WatchMonitoringView: View {
 
     // MARK: - Helpers
     private func scoreColor(_ score: Double) -> Color {
-        if score >= 0.72 {
+        let threshold = store.sensitivity.triggerThreshold
+        if score >= threshold {
             return .green
-        } else if score >= 0.5 {
+        } else if score >= threshold * 0.7 {
             return .yellow
         } else {
             return .secondary

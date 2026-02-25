@@ -40,6 +40,9 @@ public struct WatchMonitoringFeature {
         // HealthKit 권한 거부 여부
         public var healthKitDenied: Bool = false
 
+        // HealthKit 재시도 횟수 (최대 3회 제한)
+        public var healthKitRetryCount: Int = 0
+
         public init() {}
 
         // 경과 시간 (tick 기준)
@@ -119,6 +122,7 @@ public struct WatchMonitoringFeature {
                 state.triggerEvent = nil
                 state.motionSamples = []
                 state.heartRateSamples = []
+                state.healthKitRetryCount = 0
 
                 return .merge(
                     // 30초 알고리즘 타이머
@@ -245,6 +249,8 @@ public struct WatchMonitoringFeature {
                 return .none
 
             case let .triggerDetected(event):
+                // stopMonitoring과의 경합: 이미 모니터링이 종료된 경우 무시
+                guard state.monitoringState == .monitoring else { return .none }
                 state.triggerEvent = event
                 state.lastTriggerTime = event.timestamp
                 state.monitoringState = .triggered
@@ -288,7 +294,13 @@ public struct WatchMonitoringFeature {
                 }
 
             case .retryHealthKitAuthorization:
-                // 권한 재요청 후 HR 스트림 재시작 (모니터링은 계속 진행 중)
+                // 권한이 영구 거부된 경우 반복 재시도는 무의미 — 최대 3회 제한
+                guard state.healthKitRetryCount < 3 else {
+                    // 한도 초과 시 모션 전용으로 폴백 (dismissHealthKitError와 동일)
+                    state.healthKitDenied = false
+                    return .none
+                }
+                state.healthKitRetryCount += 1
                 state.healthKitDenied = false
                 return .merge(
                     .cancel(id: CancelID.heartRateStream),
@@ -332,7 +344,7 @@ private extension WatchMonitoringFeature {
 
 // MARK: - Sensitivity → Threshold
 
-private extension AlarmSchedule.Sensitivity {
+extension AlarmSchedule.Sensitivity {
     var triggerThreshold: Double {
         switch self {
         case .conservative: return 0.80

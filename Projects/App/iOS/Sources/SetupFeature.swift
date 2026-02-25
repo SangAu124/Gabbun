@@ -133,18 +133,22 @@ public struct SetupFeature {
                     enabled: state.enabled
                 )
 
-                // 기상 시각이 오늘 이미 지났으면 내일 날짜를 effectiveDate로 사용
+                // 기상 시각이 오늘 이미 지났으면 내일 기상 시각을, 아직 안 지났으면 오늘 기상 시각을 사용
                 let calendar = Calendar.current
-                var todayWakeComponents = calendar.dateComponents([.year, .month, .day], from: now)
-                todayWakeComponents.hour = state.wakeTimeHour
-                todayWakeComponents.minute = state.wakeTimeMinute
-                todayWakeComponents.second = 0
+                let wakeTimeToday = calendar.date(
+                    bySettingHour: state.wakeTimeHour,
+                    minute: state.wakeTimeMinute,
+                    second: 0,
+                    of: now
+                ) ?? now
 
                 let effectiveDateBase: Date
-                if let todayWakeTime = calendar.date(from: todayWakeComponents), todayWakeTime <= now {
-                    effectiveDateBase = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+                if wakeTimeToday <= now {
+                    // 오늘 기상 시각이 지났으면 내일 동일 시각
+                    effectiveDateBase = calendar.date(byAdding: .day, value: 1, to: wakeTimeToday) ?? wakeTimeToday
                 } else {
-                    effectiveDateBase = now
+                    // 아직 안 지났으면 오늘 기상 시각
+                    effectiveDateBase = wakeTimeToday
                 }
 
                 let dateFormatter = DateFormatter()
@@ -161,9 +165,6 @@ public struct SetupFeature {
                     payload: payload
                 )
 
-                // 기상 시각 계산 (폴백 알림용)
-                let wakeHour = state.wakeTimeHour
-                let wakeMinute = state.wakeTimeMinute
                 let isEnabled = state.enabled
                 let permissionGranted = state.notificationPermissionGranted
 
@@ -175,14 +176,9 @@ public struct SetupFeature {
                     }))
 
                     // 폴백 알림 스케줄 (enabled 상태이고 권한 있을 때)
+                    // effectiveDateBase는 이미 올바른 기상 시각(hour/minute 포함)이므로 그대로 사용
                     if isEnabled && permissionGranted {
-                        // effectiveDateBase 기준으로 날짜 추출 (내일일 수 있음)
-                        var components = calendar.dateComponents([.year, .month, .day], from: effectiveDateBase)
-                        components.hour = wakeHour
-                        components.minute = wakeMinute
-                        if let wakeTime = calendar.date(from: components) {
-                            await notificationClient.scheduleWakeUpFallback(wakeTime)
-                        }
+                        await notificationClient.scheduleWakeUpFallback(effectiveDateBase)
                     } else if !isEnabled {
                         await notificationClient.cancelWakeUpFallback()
                     }

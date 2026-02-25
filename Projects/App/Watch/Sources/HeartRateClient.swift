@@ -55,14 +55,15 @@ private actor HeartRateActor {
     private var query: HKAnchoredObjectQuery?
     private var continuation: AsyncStream<HeartRateSample>.Continuation?
 
-    private static let heartRateType = HKQuantityType.quantityType(forIdentifier: .heartRate)!
+    private static let heartRateType: HKQuantityType? = HKQuantityType.quantityType(forIdentifier: .heartRate)
     private static let heartRateUnit = HKUnit(from: "count/min")
 
     // MARK: - Authorization
 
     func requestAuthorization() async throws {
         guard HKHealthStore.isHealthDataAvailable() else { return }
-        let typesToRead: Set<HKObjectType> = [Self.heartRateType]
+        guard let heartRateType = Self.heartRateType else { return }
+        let typesToRead: Set<HKObjectType> = [heartRateType]
         // 워크아웃 세션 유지를 위해 HKWorkoutType 쓰기 권한도 함께 요청
         let typesToShare: Set<HKSampleType> = [HKObjectType.workoutType()]
         try await healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead)
@@ -128,6 +129,8 @@ private actor HeartRateActor {
     // MARK: - Heart Rate Query
 
     private func startHeartRateQuery() {
+        guard let heartRateType = Self.heartRateType else { return }
+
         let predicate = HKQuery.predicateForSamples(
             withStart: Date(),
             end: nil,
@@ -135,7 +138,7 @@ private actor HeartRateActor {
         )
 
         let anchoredQuery = HKAnchoredObjectQuery(
-            type: Self.heartRateType,
+            type: heartRateType,
             predicate: predicate,
             anchor: nil,
             limit: HKObjectQueryNoLimit
@@ -157,7 +160,7 @@ private actor HeartRateActor {
         healthStore.execute(anchoredQuery)
 
         // 백그라운드 딜리버리 활성화
-        healthStore.enableBackgroundDelivery(for: Self.heartRateType, frequency: .immediate) { _, _ in }
+        healthStore.enableBackgroundDelivery(for: heartRateType, frequency: .immediate) { _, _ in }
     }
 
     private func processSamples(_ samples: [HKQuantitySample]) {
