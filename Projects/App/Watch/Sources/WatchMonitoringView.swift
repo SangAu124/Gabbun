@@ -11,6 +11,15 @@ public struct WatchMonitoringView: View {
     }
 
     public var body: some View {
+        if store.healthKitDenied {
+            healthKitDeniedView
+        } else {
+            monitoringContentView
+        }
+    }
+
+    // MARK: - Monitoring Content (정상 모니터링)
+    private var monitoringContentView: some View {
         ScrollView {
             VStack(spacing: 12) {
                 // 상태 헤더
@@ -22,6 +31,65 @@ public struct WatchMonitoringView: View {
                 scoreDisplay
             }
             .padding()
+        }
+    }
+
+    // MARK: - HealthKit 권한 거부 안내
+    private var healthKitDeniedView: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                Image(systemName: "heart.slash.fill")
+                    .font(.title2)
+                    .foregroundColor(.red)
+                    .padding(.top, 8)
+
+                Text("심박 접근 필요")
+                    .font(.headline)
+                    .multilineTextAlignment(.center)
+
+                Text("심박수를 읽으면 더 정확하게 기상 시점을 감지할 수 있어요.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+
+                Divider()
+
+                // 허용 방법 안내
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("iPhone에서 허용하기")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                    Text("설정 → 개인정보 보호 → 건강 → 가뿐 → 심박수 켜기")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(8)
+                .background(Color.white.opacity(0.08))
+                .cornerRadius(8)
+
+                // 다시 시도
+                Button {
+                    store.send(.retryHealthKitAuthorization)
+                } label: {
+                    Label("다시 시도", systemImage: "arrow.clockwise")
+                        .font(.caption)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
+
+                // 모션만 사용 (폴백)
+                Button {
+                    store.send(.dismissHealthKitError)
+                } label: {
+                    Text("모션만 사용")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.bottom, 12)
         }
     }
 

@@ -79,6 +79,10 @@ public struct WatchMonitoringFeature {
 
         // HealthKit 세션 오류
         case heartRateSessionFailed(any Error)
+
+        // HealthKit 권한 재시도 / 모션 전용으로 계속
+        case retryHealthKitAuthorization
+        case dismissHealthKitError
     }
 
     // MARK: - Dependencies
@@ -282,6 +286,29 @@ public struct WatchMonitoringFeature {
                 return .run { _ in
                     print("[MonitoringFeature] HealthKit 세션 시작 실패: \(error.localizedDescription)")
                 }
+
+            case .retryHealthKitAuthorization:
+                // 권한 재요청 후 HR 스트림 재시작 (모니터링은 계속 진행 중)
+                state.healthKitDenied = false
+                return .merge(
+                    .cancel(id: CancelID.heartRateStream),
+                    .run { [heartRateClient] send in
+                        do {
+                            try await heartRateClient.startWorkoutSession()
+                            for await sample in await heartRateClient.heartRateSamples() {
+                                await send(.heartRateSampleReceived(sample))
+                            }
+                        } catch {
+                            await send(.heartRateSessionFailed(error))
+                        }
+                    }
+                    .cancellable(id: CancelID.heartRateStream)
+                )
+
+            case .dismissHealthKitError:
+                // 모션 전용으로 계속 — 이미 모션 스트림은 동작 중
+                state.healthKitDenied = false
+                return .none
             }
         }
     }
