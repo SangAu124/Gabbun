@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 import ComposableArchitecture
 import SharedDomain
 import SharedTransport
@@ -51,6 +52,8 @@ public struct WatchAppFeature {
         case reachabilityMonitor
     }
 
+    private let watchFallbackNotificationId = "gabbun.watch.wakeup.fallback"
+
     // MARK: - Reducer
     public var body: some ReducerOf<Self> {
         Scope(state: \.arming, action: \.arming) {
@@ -69,6 +72,11 @@ public struct WatchAppFeature {
             switch action {
             case .onAppear:
                 return .merge(
+                    // 워치 로컬 알림 권한 요청
+                    .run { _ in
+                        _ = try? await UNUserNotificationCenter.current()
+                            .requestAuthorization(options: [.alert, .sound, .badge])
+                    },
                     // WCSession 활성화 및 기존 context 확인
                     .run { send in
                         await wcSessionClient.activate()
@@ -145,6 +153,9 @@ public struct WatchAppFeature {
                 let recentScores = state.monitoring.recentScores
                 let hasFallback = state.monitoring.targetWakeTime == nil || state.monitoring.windowStartTime == nil
                 return .merge(
+                    .run { _ in
+                        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [watchFallbackNotificationId])
+                    },
                     .send(.arming(.setTriggered)),
                     .send(.alarm(.alarmTriggered(
                         event,
@@ -183,17 +194,77 @@ public struct WatchAppFeature {
         if let envelope: Envelope<UpdateSchedulePayload> = try? message.decode(),
            envelope.type == .updateSchedule {
             let payload = envelope.payload
-            return .send(.arming(.scheduleReceived(
-                schedule: payload.schedule,
-                effectiveDate: payload.effectiveDate
-            )))
+            return .merge(
+                .send(.arming(.scheduleReceived(
+                    schedule: payload.schedule,
+                    effectiveDate: payload.effectiveDate
+                ))),
+                .run { _ in
+                    // 워치 로컬 폴백 알람: 앱이 비활성/백그라운드여도 목표 시각에 강한 알림 보장
+                    let center = UNUserNotificationCenter.current()
+                    center.removePendingNotificationRequests(withIdentifiers: [watchFallbackNotificationId])
+
+                    guard payload.schedule.enabled,
+                          let targetWakeTime = parseTargetWakeTime(
+                            effectiveDate: payload.effectiveDate,
+                            wakeTimeLocal: payload.schedule.wakeTimeLocal
+                          ) else { return }
+
+                    let content = UNMutableNotificationContent()
+                    content.title = "가뿐 기상 알람"
+                    content.body = "지금 일어날 시간이에요."
+                    content.sound = .default
+                    content.interruptionLevel = .timeSensitive
+
+                    let components = Calendar.current.dateComponents(
+                        [.year, .month, .day, .hour, .minute, .second],
+                        from: targetWakeTime
+                    )
+                    let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+                    let request = UNNotificationRequest(
+                        identifier: watchFallbackNotificationId,
+                        content: content,
+                        trigger: trigger
+                    )
+                    try? await center.add(request)
+                }
+            )
         } else if let envelope: Envelope<CancelSchedulePayload> = try? message.decode(),
                   envelope.type == .cancelSchedule {
-            return .send(.arming(.scheduleCancelled))
+            return .merge(
+                .send(.arming(.scheduleCancelled)),
+                .run { _ in
+                    UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [watchFallbackNotificationId])
+                }
+            )
         } else {
             return .run { _ in
                 print("[WatchAppFeature] 처리 불가 메시지 수신 — 향후 메시지 타입 추가 시 핸들러 등록 필요")
             }
         }
+    }
+
+    private func parseTargetWakeTime(effectiveDate: String, wakeTimeLocal: String) -> Date? {
+        let dateParts = effectiveDate.split(separator: "-")
+        let timeParts = wakeTimeLocal.split(separator: ":")
+
+        guard dateParts.count == 3,
+              timeParts.count == 2,
+              let year = Int(dateParts[0]),
+              let month = Int(dateParts[1]),
+              let day = Int(dateParts[2]),
+              let hour = Int(timeParts[0]),
+              let minute = Int(timeParts[1]) else {
+            return nil
+        }
+
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = hour
+        components.minute = minute
+        components.second = 0
+        return Calendar.current.date(from: components)
     }
 }

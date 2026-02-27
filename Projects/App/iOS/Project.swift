@@ -58,9 +58,17 @@ let project = Project(
                     "WKBackgroundModes": ["workout-processing"]
                 ]
             ),
-            entitlements: .file(path: .relativeToManifest("../Watch/Resources/GabbunWatchApp.entitlements")),
             sources: ["../Watch/Sources/**"],
-            resources: ["../Watch/Resources/**"],
+            resources: [
+                .glob(
+                    pattern: "../Watch/Resources/**",
+                    excluding: [
+                        "../Watch/Resources/Info.plist",
+                        "../Watch/Resources/GabbunWatchApp.entitlements"
+                    ]
+                )
+            ],
+            entitlements: .file(path: .relativeToManifest("../Watch/Resources/GabbunWatchApp.entitlements")),
             dependencies: [
                 .external(name: "ComposableArchitecture"),
                 .project(

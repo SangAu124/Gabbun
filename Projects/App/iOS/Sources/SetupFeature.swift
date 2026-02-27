@@ -42,12 +42,17 @@ public struct SetupFeature {
     // MARK: - Action
     public enum Action: Sendable {
         case onAppear
+        case settingsLoaded(Result<SetupSettings, Error>)
+        case persistCurrentSettings
+        case settingsPersisted(Result<Void, Error>)
+
         case wakeTimeHourChanged(Int)
         case wakeTimeMinuteChanged(Int)
         case windowMinutesChanged(Int)
         case sensitivityChanged(AlarmSchedule.Sensitivity)
         case enabledToggled
         case syncButtonTapped
+        case testAlarmButtonTapped
         case syncResponse(Result<Void, Error>)
         case updateConnectionStatus
         case connectionStatusUpdated(isReachable: Bool, isActivated: Bool)
@@ -63,6 +68,7 @@ public struct SetupFeature {
     // MARK: - Dependencies
     @Dependency(\.wcSessionClient) var wcSessionClient
     @Dependency(\.notificationClient) var notificationClient
+    @Dependency(\.setupStoreClient) var setupStoreClient
     @Dependency(\.date.now) var now
     @Dependency(\.continuousClock) var clock
 
@@ -77,6 +83,10 @@ public struct SetupFeature {
             switch action {
             case .onAppear:
                 return .merge(
+                    // 저장된 설정 복원
+                    .run { send in
+                        await send(.settingsLoaded(Result { try setupStoreClient.load() }))
+                    },
                     // WCSession 활성화
                     .run { _ in await wcSessionClient.activate() },
                     // 연결 상태 모니터링
@@ -100,25 +110,56 @@ public struct SetupFeature {
                     }
                 )
 
+            case let .settingsLoaded(.success(settings)):
+                state.wakeTimeHour = settings.wakeTimeHour
+                state.wakeTimeMinute = settings.wakeTimeMinute
+                state.windowMinutes = settings.windowMinutes
+                state.sensitivity = settings.sensitivity
+                state.enabled = settings.enabled
+                return .none
+
+            case let .settingsLoaded(.failure(error)):
+                state.errorMessage = "설정 불러오기 실패: \(error.localizedDescription)"
+                return .none
+
+            case .persistCurrentSettings:
+                let settings = SetupSettings(
+                    wakeTimeHour: state.wakeTimeHour,
+                    wakeTimeMinute: state.wakeTimeMinute,
+                    windowMinutes: state.windowMinutes,
+                    sensitivity: state.sensitivity,
+                    enabled: state.enabled
+                )
+                return .run { send in
+                    await send(.settingsPersisted(Result { try setupStoreClient.save(settings) }))
+                }
+
+            case .settingsPersisted(.success):
+                return .none
+
+            case let .settingsPersisted(.failure(error)):
+                state.errorMessage = "설정 저장 실패: \(error.localizedDescription)"
+                return .none
+
             case .wakeTimeHourChanged(let hour):
                 state.wakeTimeHour = hour
-                return .none
+                return .send(.persistCurrentSettings)
 
             case .wakeTimeMinuteChanged(let minute):
                 state.wakeTimeMinute = minute
-                return .none
+                return .send(.persistCurrentSettings)
 
             case .windowMinutesChanged(let minutes):
                 state.windowMinutes = minutes
-                return .none
+                return .send(.persistCurrentSettings)
 
             case .sensitivityChanged(let sensitivity):
                 state.sensitivity = sensitivity
-                return .none
+                return .send(.persistCurrentSettings)
 
             case .enabledToggled:
                 state.enabled.toggle()
-                return .none
+                return .send(.persistCurrentSettings)
 
             case .syncButtonTapped:
                 guard !state.isSyncing else { return .none }
@@ -186,6 +227,50 @@ public struct SetupFeature {
                         await notificationClient.scheduleWakeUpFallback(effectiveDateBase)
                     } else if !isEnabled {
                         await notificationClient.cancelWakeUpFallback()
+                    }
+                }
+
+            case .testAlarmButtonTapped:
+                guard !state.isSyncing else { return .none }
+
+                state.isSyncing = true
+                state.errorMessage = nil
+
+                let calendar = Calendar.current
+                // 즉시 테스트용: 2분 뒤 알람 (분 단위 반올림)
+                let testBase = now.addingTimeInterval(120)
+                let testMinuteDate = calendar.date(bySetting: .second, value: 0, of: testBase) ?? testBase
+                let testHour = calendar.component(.hour, from: testMinuteDate)
+                let testMinute = calendar.component(.minute, from: testMinuteDate)
+
+                let schedule = AlarmSchedule(
+                    wakeTimeLocal: String(format: "%02d:%02d", testHour, testMinute),
+                    windowMinutes: 1,
+                    sensitivity: .balanced,
+                    enabled: true
+                )
+
+                let dateComponents = calendar.dateComponents([.year, .month, .day], from: testMinuteDate)
+                let effectiveDate = String(
+                    format: "%04d-%02d-%02d",
+                    dateComponents.year ?? 0,
+                    dateComponents.month ?? 0,
+                    dateComponents.day ?? 0
+                )
+
+                let payload = UpdateSchedulePayload(schedule: schedule, effectiveDate: effectiveDate)
+                let envelope = Envelope(type: .updateSchedule, payload: payload)
+
+                let permissionGranted = state.notificationPermissionGranted
+
+                return .run { send in
+                    await send(.syncResponse(Result {
+                        let message = try TransportMessage(envelope: envelope)
+                        try wcSessionClient.updateContext(message)
+                    }))
+
+                    if permissionGranted {
+                        await notificationClient.scheduleWakeUpFallback(testMinuteDate)
                     }
                 }
 

@@ -53,17 +53,29 @@ struct GabbunApp: App {
 
     var body: some Scene {
         WindowGroup {
-            TabView {
-                SetupView(store: store.scope(state: \.setup, action: \.setup))
-                    .tabItem {
-                        Label("알람 설정", systemImage: "alarm")
-                    }
+            RootTabView(store: store)
+        }
+    }
+}
 
-                ReportView(store: store.scope(state: \.report, action: \.report))
-                    .tabItem {
-                        Label("수면 기록", systemImage: "list.bullet.clipboard")
-                    }
-            }
+private struct RootTabView: View {
+    let store: StoreOf<AppFeature>
+
+    @State private var selectedTab: Int = ProcessInfo.processInfo.arguments.contains("-showReportFirst") ? 1 : 0
+
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            SetupView(store: store.scope(state: \.setup, action: \.setup))
+                .tabItem {
+                    Label("알람 설정", systemImage: "alarm")
+                }
+                .tag(0)
+
+            ReportView(store: store.scope(state: \.report, action: \.report))
+                .tabItem {
+                    Label("수면 기록", systemImage: "list.bullet.clipboard")
+                }
+                .tag(1)
         }
     }
 }
